@@ -51,7 +51,7 @@
                 });
 
                 let data = await response.json();
-                chatBox.innerHTML += `<div class="message bot"><b>Bot:</b> ${data.response}</div>`;
+                chatBox.innerHTML += `<div class="message bot"><b>Bot:</b> ${data.output}</div>`;
                 chatBox.scrollTop = chatBox.scrollHeight;
             } catch (error) {
                 chatBox.innerHTML += `<div class="message bot"><b>Bot:</b> Error: Could not connect</div>`;
