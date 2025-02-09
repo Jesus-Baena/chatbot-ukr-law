@@ -3,149 +3,269 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chatbot</title>
+    <title>Ukrainian NGO Legislation Adviser</title>
     <style>
-        body { font-family: Arial, sans-serif; text-align: center; background-color: #D4E4F6; }
-        #chat-container { width: 90%; max-width: 1200px; margin: 20px auto; padding: 10px; background: white; border-radius: 5px; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2); }
-        #chat { height: 600px; overflow-y: auto; border-bottom: 1px solid #ccc; padding: 10px; }
-        .message { padding: 5px; margin: 5px 0; border-radius: 5px; }
-        .user { background: #e1ffc7; text-align: right; }
-        .bot { background: #c7e1ff; text-align: left; }
-        #userInput { width: 80%; padding: 10px; }
-        #sendButton { padding: 10px; cursor: pointer; }
+        /* CSS Variables for easy theming */
+        :root {
+            --primary-color: #2B638B;
+            --secondary-color: #D4E4F6;
+            --user-message-bg: #dcf8c6;
+            --bot-message-bg: #e3f2fd;
+            --text-color: #333;
+            --border-radius: 15px;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            background: #D4E4F6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* More modern font */
+            background: var(--secondary-color);
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            min-height: 100vh; /* Use min-height instead of height */
             margin: 0;
+            padding: 20px; /* Add some padding around the body */
+            box-sizing: border-box; /* Include padding in element's total width/height */
         }
-        
+
         .chat-container {
-            width: 400px;
-            max-width: 100%;
+            width: 100%; /* Use full width on smaller screens */
+            max-width: 500px; /* Limit width on larger screens */
             background: white;
-            border-radius: 15px;
-            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+            border-radius: var(--border-radius);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
             overflow: hidden;
+            display: flex; /* Flexbox for layout */
+            flex-direction: column; /* Stack elements vertically */
+            height: 80vh; /*make height relative*/
+            max-height: 700px;
         }
-        
+
         .chat-header {
-            background: #2B638B;
+            background: var(--primary-color);
             color: white;
             text-align: center;
             padding: 15px;
-            font-size: 18px;
+            font-size: 1.1em; /* Slightly larger font */
             font-weight: bold;
         }
-        
+
         .chat-box {
-            height: 400px;
+            flex: 1; /* Grow to fill available space */
             overflow-y: auto;
             padding: 15px;
             display: flex;
             flex-direction: column;
+            /* No need to set height explicitly */
         }
-        
+
         .message {
             padding: 10px 15px;
             border-radius: 20px;
             margin-bottom: 10px;
             max-width: 80%;
             word-wrap: break-word;
-            font-size: 14px;
+            font-size: 0.9em; /* Slightly smaller font for messages */
+            color: var(--text-color);
+            position: relative; /* For positioning the timestamp */
         }
-        
+
         .user {
             align-self: flex-end;
-            background: #dcf8c6;
-            color: #333;
+            background: var(--user-message-bg);
         }
-        
+
         .bot {
             align-self: flex-start;
-            background: #e3f2fd;
-            color: #333;
+            background: var(--bot-message-bg);
         }
-        
+        /*Added message timestamp*/
+        .message-timestamp {
+            font-size: 0.7em;
+            color: #888;
+            position: absolute;
+            bottom: 2px; /* Position at the bottom */
+            right: 8px;  /* Position to the right */
+        }
+
+        .user .message-timestamp{
+            right: auto; /* Reset right for user messages*/
+            left: 8px; /*Correct timestamp position for users */
+        }
+
         .chat-input-container {
             display: flex;
             padding: 10px;
             background: #fff;
             border-top: 1px solid #ddd;
         }
-        
+
         .chat-input {
             flex: 1;
-            padding: 10px;
+            padding: 12px 15px; /* Slightly larger padding */
             border: 1px solid #ddd;
             border-radius: 20px;
             outline: none;
-            font-size: 14px;
+            font-size: 0.9em;
+            transition: border-color 0.3s ease; /* Smooth transition on focus */
         }
-        
+
+        .chat-input:focus {
+            border-color: var(--primary-color); /* Highlight on focus */
+        }
+
         .send-button {
-            background: #2B638B;
+            background: var(--primary-color);
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 12px 20px;
             border-radius: 20px;
             margin-left: 10px;
             cursor: pointer;
+            transition: background-color 0.3s ease; /* Smooth transition on hover */
+            font-size: 0.9em;
         }
-        
+
         .send-button:hover {
             background: #0056b3;
-        }        
+        }
+
+        /* Loading Indicator */
+        .loading-indicator {
+            display: none; /* Hidden by default */
+            align-self: flex-start;
+            margin-bottom: 10px;
+        }
+
+        .loading-indicator.active {
+            display: block; /* Show when active */
+        }
+
+        .loading-indicator span {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--primary-color);
+            margin: 0 3px;
+            animation: bounce 0.6s infinite alternate;
+        }
+
+        .loading-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .loading-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        @keyframes bounce {
+            to {
+                transform: translateY(-5px);
+            }
+        }
+        /* Media query for smaller screens */
+        @media (max-width: 768px) {
+            .chat-container {
+                border-radius: 0; /* Remove border-radius on smaller screens */
+                height: 100vh; /* Full height*/
+                max-height: none; /*Remove max height*/
+            }
+        }
     </style>
 </head>
 <body>
+    <main class="chat-container" role="main">
+        <header class="chat-header" role="banner">
+            Ukrainian NGO Legislation Adviser
+        </header>
+        <section id="chatBox" class="chat-box" aria-live="polite" aria-atomic="true"></section>
 
-    <div class="chat-container">
-        <div class="chat-header">Ukranian NGO legislation adviser</div>
-        <div id="chatBox" class="chat-box"></div>
-        <div class="chat-input-container">
-            <input type="text" id="userInput" class="chat-input" placeholder="Type a message...">
-            <button id="sendButton" class="send-button">Send</button>
+        <div class="loading-indicator" id="loadingIndicator">
+            <span></span>
+            <span></span>
+            <span></span>
         </div>
-    </div>    
+
+        <footer class="chat-input-container" role="contentinfo">
+            <input type="text" id="userInput" class="chat-input" placeholder="Type your question..." aria-label="Type your message" autocomplete="off">
+            <button id="sendButton" class="send-button" aria-label="Send Message">Send</button>
+        </footer>
+    </main>
 
     <script>
         document.getElementById("sendButton").addEventListener("click", sendMessage);
-document.getElementById("userInput").addEventListener("keypress", function(event) {
-    if (event.key === "Enter") sendMessage();
-});
-
-async function sendMessage() {
-    let userInput = document.getElementById("userInput");
-    let chatBox = document.getElementById("chatBox");
-    let message = userInput.value.trim();
-
-    if (!message) return;
-
-    // Display user message
-    chatBox.innerHTML += `<div class="message user"><b>You:</b> ${message}</div>`;
-    userInput.value = "";
-    chatBox.scrollTop = chatBox.scrollHeight;
-
-    // Call n8n API
-    try {
-        let response = await fetch("https://jbaena.app.n8n.cloud/webhook/chatbox-ukr-law", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ message: message })
+        document.getElementById("userInput").addEventListener("keypress", function(event) {
+            if (event.key === "Enter" && !event.shiftKey) { // Prevent newline on Shift+Enter
+                event.preventDefault(); // Prevent default behavior (newline)
+                sendMessage();
+            }
         });
 
-        let data = await response.json();
-        chatBox.innerHTML += `<div class="message bot"><b>Bot:</b> ${data.output}</div>`;
-        chatBox.scrollTop = chatBox.scrollHeight;
-    } catch (error) {
-        chatBox.innerHTML += `<div class="message bot"><b>Bot:</b> Error: Could not connect</div>`;
-    }
-}
-    </script>
+        const chatBox = document.getElementById("chatBox");
+        const loadingIndicator = document.getElementById("loadingIndicator");
 
+        // Function to escape HTML to prevent XSS
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Function to add a message to the chat box
+        function addMessage(sender, message) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', sender);
+            const senderName = sender === 'user' ? 'You' : 'Bot';
+            const now = new Date();
+            const timestamp = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            messageDiv.innerHTML = `<b>${senderName}:</b> ${escapeHtml(message)}<span class="message-timestamp">${timestamp}</span>`;
+            chatBox.appendChild(messageDiv);
+            chatBox.scrollTop = chatBox.scrollHeight; // Scroll to bottom
+        }
+
+        async function sendMessage() {
+            const userInput = document.getElementById("userInput");
+            const message = userInput.value.trim();
+
+            if (!message) return;
+
+            addMessage('user', message);
+            userInput.value = "";
+            userInput.focus(); // Keep focus on input
+
+            loadingIndicator.classList.add('active'); // Show loading indicator
+
+            try {
+                const response = await fetch("https://jbaena.app.n8n.cloud/webhook/chatbox-ukr-law", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ message: message })
+                });
+
+                if (!response.ok) {
+                  // Handle HTTP errors (e.g., 404, 500)
+                  throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+
+                const data = await response.json();
+                // Check for a valid response format
+                if (data && typeof data.output === 'string') {
+                    addMessage('bot', data.output);
+                } else {
+                    addMessage('bot', "I'm sorry, I didn't understand the response from the server.");
+                }
+
+            } catch (error) {
+                console.error("Error during fetch:", error);
+                addMessage('bot', `Error: ${error.message}`);
+            } finally {
+                loadingIndicator.classList.remove('active'); // Hide loading indicator
+            }
+        }
+    </script>
 </body>
 </html>
