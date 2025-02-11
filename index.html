@@ -211,7 +211,6 @@
         const chatBox = document.getElementById("chatBox");
         const loadingIndicator = document.getElementById("loadingIndicator");
 
-        // Function to escape HTML - This is correct!
         function escapeHtml(unsafe) {
             return unsafe
                 .replace(/&/g, "&amp;")
@@ -221,7 +220,6 @@
                 .replace(/'/g, "&#039;");
         }
 
-        // Corrected addMessage function
         function addMessage(sender, message) {
             const messageDiv = document.createElement('div');
             messageDiv.classList.add('message', sender);
@@ -232,13 +230,13 @@
             let processedMessage = message;
 
             if (sender === 'bot') {
-                // Parse Markdown ONLY for bot messages
-                processedMessage = marked.parse(processedMessage);
+                // Use parseInline for bot messages
+                processedMessage = marked.parseInline(processedMessage);
             }
-             // Escape HTML *after* Markdown parsing
             processedMessage = escapeHtml(processedMessage);
 
-            messageDiv.innerHTML = `<b>${senderName}:</b> <span class="message-content">${processedMessage}</span><span class="message-timestamp">${timestamp}</span>`;            chatBox.appendChild(messageDiv);
+            messageDiv.innerHTML = `<b>${senderName}:</b> <span class="message-content">${processedMessage}</span><span class="message-timestamp">${timestamp}</span>`;
+            chatBox.appendChild(messageDiv);
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
@@ -248,7 +246,6 @@
 
             if (!message) return;
 
-             // Add user's message to the chat (no Markdown parsing needed)
             addMessage('user', message);
             userInput.value = "";
             userInput.focus();
@@ -267,11 +264,10 @@
                 }
 
                 const data = await response.json();
-                 // Check for a valid response format before processing
                 if (data && typeof data.output === 'string') {
-                    addMessage('bot', data.output); // Add bot's message (Markdown parsing will happen in addMessage)
+                    addMessage('bot', data.output);
                 } else {
-                     addMessage('bot', "I'm sorry, I didn't understand the response from the server.");
+                    addMessage('bot', "I'm sorry, I didn't understand the response from the server.");
                 }
             } catch (error) {
                 console.error("Error during fetch:", error);
