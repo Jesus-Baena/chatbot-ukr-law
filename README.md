@@ -3,6 +3,9 @@
 ## Overview
 
 The AI Agent UKR Legal Adviser is a personal solution designed to provide preliminary legal advice and legislative information before incurring on legal fees, tailored for Ukrainian NGOs involved in humanitarian operations. This project combines a modern, responsive chat interface with a robust backend workflow (powered by n8n) that integrates advanced AI language models, document retrieval systems, and multiple external data sources to deliver accurate, context-aware legal guidance.
+
+The information about the Knowledge Base can be consulted here: https://jbaena.net/portfolio/kb-legal-ukr
+
 Features
 
   Interactive Chat Interface
@@ -71,7 +74,7 @@ The project consists of two primary components:
     The chat interface uses the Marked.js library via CDN. Verify that your internet connection allows access to the CDN, or host the library locally if necessary.
 
   Configuration:
-    The JavaScript in the HTML file sends a POST request to https://jbaena.app.n8n.cloud/webhook/ukr-law-adviser. If you are hosting your own n8n instance, update this URL accordingly.
+    The JavaScript in the HTML file sends a POST request to https://jbaena.app.n8n.cloud/webhook/ukr-law-adviser.
 
 ### Backend (n8n) Setup
 
