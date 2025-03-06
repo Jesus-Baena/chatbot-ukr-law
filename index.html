@@ -6,11 +6,10 @@
   <title>Ukrainian NGO Legislation Adviser</title>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <style>
-    /* CSS Variables */
     :root {
       --primary-color: #2B638B;
       --primary-color-gradient: linear-gradient(135deg, #2B638B, #1E4A68);
-      --secondary-color: #f0f8ff;  /* changed to a lighter background */
+      --secondary-color: #f0f8ff;
       --user-message-bg: #dcf8c6;
       --bot-message-bg: #e3f2fd;
       --text-color: #333;
@@ -20,7 +19,6 @@
 
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      /* Added a soft gradient background */
       background: linear-gradient(to bottom right, #cfdcf3, #f0f8ff);
       margin: 0;
       padding: 20px;
@@ -32,23 +30,20 @@
     }
 
     .chat-container {
-      /* Make it wider */
       width: 90%;
-      max-width: 1000px;  /* you can adjust to your liking */
+      max-width: 1000px;
       background: white;
       border-radius: var(--border-radius);
       box-shadow: 0 4px 15px var(--box-shadow-color);
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      /* Increased height a bit for more vertical space */
       height: 85vh;
       max-height: 900px;
       margin: 0 auto;
     }
 
     .chat-header {
-      /* Use a gradient in the header */
       background: var(--primary-color-gradient);
       color: white;
       text-align: center;
@@ -64,40 +59,6 @@
       padding: 20px;
       display: flex;
       flex-direction: column;
-    }
-
-    .message {
-      padding: 12px 16px;
-      border-radius: 20px;
-      margin-bottom: 15px;
-      max-width: 80%;  /* allows some indentation from edges */
-      word-wrap: break-word;
-      font-size: 0.95em;
-      color: var(--text-color);
-      position: relative;
-      line-height: 1.4em;
-    }
-
-    .user {
-      align-self: flex-end;
-      background: var(--user-message-bg);
-    }
-
-    .bot {
-      align-self: flex-start;
-      background: var(--bot-message-bg);
-    }
-
-    .message-timestamp {
-      font-size: 0.7em;
-      color: #666;
-      position: absolute;
-      bottom: 2px;
-      right: 10px;
-    }
-
-    .user .message-timestamp {
-      right: 10px; /* keep it on the right for user messages */
     }
 
     .chat-input-container {
@@ -137,46 +98,6 @@
       background: #0056b3;
     }
 
-    /* Loading Indicator */
-    .loading-indicator {
-      display: none;
-      align-self: flex-start;
-      margin-bottom: 10px;
-    }
-
-    .loading-indicator.active {
-      display: block;
-    }
-
-    .loading-indicator span {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background-color: var(--primary-color);
-      margin: 0 3px;
-      animation: bounce 0.6s infinite alternate;
-    }
-
-    .loading-indicator span:nth-child(2) {
-      animation-delay: 0.2s;
-    }
-
-    .loading-indicator span:nth-child(3) {
-      animation-delay: 0.4s;
-    }
-
-    @keyframes bounce {
-      to {
-        transform: translateY(-5px);
-      }
-    }
-
-    .message-content {
-      padding-right: 10px;
-      display: inline-block;
-    }
-
     @media (max-width: 768px) {
       .chat-container {
         border-radius: 0;
@@ -190,11 +111,36 @@
 <body>
 
 <main class="chat-container" role="main">
+  <header class="chat-header">
+    Ukrainian NGO Legislation Adviser
+  </header>
+
+  <section id="chatBox" class="chat-box" aria-live="polite" aria-atomic="true"></section>
+
+  <footer class="chat-input-container">
+    <input
+      type="text"
+      id="userInput"
+      class="chat-input"
+      placeholder="Type your question..."
+      autocomplete="off"
+    />
+    <button id="sendButton" class="send-button">
+      Send
+    </button>
+  </footer>
+</main>
+
+</body>
+</html>
+
+<body>
+
+<main class="chat-container" role="main">
   <header class="chat-header" role="banner">
     Ukrainian NGO Legislation Adviser
   </header>
 </main>
-
 
   <section id="chatBox" class="chat-box" aria-live="polite" aria-atomic="true"></section>
 
