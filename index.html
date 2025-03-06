@@ -110,34 +110,30 @@
 </head>
 <body>
 
+<!-- Remove duplicate chat containers -->
 <main class="chat-container" role="main">
-  <header class="chat-header" role="banner">
+  <header class="chat-header">
     Ukrainian NGO Legislation Adviser
   </header>
-</main>
 
   <section id="chatBox" class="chat-box" aria-live="polite" aria-atomic="true"></section>
 
-  <div class="loading-indicator" id="loadingIndicator">
-    <span></span>
-    <span></span>
-    <span></span>
-  </div>
-
-  <footer class="chat-input-container" role="contentinfo">
+  <footer class="chat-input-container">
     <input
       type="text"
       id="userInput"
       class="chat-input"
       placeholder="Type your question..."
-      aria-label="Type your message"
       autocomplete="off"
     />
-    <button id="sendButton" class="send-button" aria-label="Send Message">
+    <button id="sendButton" class="send-button">
       Send
     </button>
   </footer>
 </main>
+
+</body>
+</html>
 
 <script>
   // 1) Retrieve or create sessionId in localStorage
