@@ -109,7 +109,7 @@ def is_law_id(value: str) -> bool:
     return bool(re.search(r"\d", value))
 
 
-def fetch_catalogue_doc_txt(max_items: int = 5000) -> list[dict]:
+def fetch_catalogue_doc_txt(max_items: int | None = None) -> list[dict]:
     """Fetch and parse the large laws feed from doc.txt (cp1251 encoded)."""
     url = "https://data.rada.gov.ua/ogd/zak/laws/data/csv/doc.txt"
     r = requests.get(url, headers=HEADERS, timeout=max(REQUEST_TIMEOUT, 60))
@@ -145,7 +145,7 @@ def fetch_catalogue_doc_txt(max_items: int = 5000) -> list[dict]:
                 "url": f"https://zakon.rada.gov.ua/laws/show/{law_id}",
             }
         )
-        if len(entries) >= max_items:
+        if max_items is not None and len(entries) >= max_items:
             break
 
     return entries
@@ -252,7 +252,7 @@ def main():
     if entries and sum(1 for e in entries if is_law_id(e["id"])) < max(1, len(entries) // 2):
         print("\n⚠ Feed returned metadata entries instead of law records. Trying doc.txt fallback...")
         try:
-            entries = fetch_catalogue_doc_txt(max_items=max(MAX_LAWS * 5, 2000))
+            entries = fetch_catalogue_doc_txt()
             print(f"  ✓ Parsed {len(entries)} candidate law entries from doc.txt")
         except Exception as e:
             print(f"  ✗ doc.txt fallback failed: {e}")

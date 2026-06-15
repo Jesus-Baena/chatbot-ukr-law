@@ -56,6 +56,7 @@ If this project runs outside the Docker Swarm network, keep `DATABASE_URL` point
 `localhost:5432` and start the SSH tunnel before running any Postgres-backed scripts:
 
 ```bash
+# Terminal 1: start the tunnel and leave it running
 bash 0_start_postgres_tunnel.sh
 ```
 
@@ -64,6 +65,8 @@ This creates a temporary `socat` proxy on the remote Docker host and forwards lo
 `storage-internal` overlay network.
 
 Notes:
+- `0_start_postgres_tunnel.sh` is a blocking process because it keeps the SSH tunnel open.
+- Run the ingest scripts in a second terminal after the tunnel prints `Keep this terminal open while using the database.`
 - `.env` is ignored by git. Commit only placeholder values in `.env.example`.
 - `QDRANT_URL` is the canonical variable name.
 - `2_scrape_laws.py` and `4_incremental_update.py` automatically write extracted laws to Postgres staging when `DATABASE_URL` is set.
@@ -72,6 +75,48 @@ Notes:
 - `STAGING_STORE_RAW_JSON=0` (default) keeps staging lean by not storing full processed law JSON in `rada_staging_laws.raw_json`.
 - When available, the original catalogue/update entry is stored in `rada_staging_laws.source_catalogue_json` for provenance.
 - `0_start_postgres_tunnel.sh` is the supported way to reach the Portainer-managed Swarm Postgres from local development.
+
+### Batch Run Example
+
+Use two terminals when `DATABASE_URL` points at the SSH tunnel.
+
+Terminal 1:
+
+```bash
+bash 0_start_postgres_tunnel.sh
+```
+
+Terminal 2:
+
+```bash
+sed -i 's/^CATALOGUE_OFFSET=.*/CATALOGUE_OFFSET=1200/' .env || echo 'CATALOGUE_OFFSET=1200' >> .env
+sed -i 's/^MAX_LAWS=.*/MAX_LAWS=300/' .env || echo 'MAX_LAWS=300' >> .env
+sed -i 's/^FORCE_RESCRAPE=.*/FORCE_RESCRAPE=1/' .env || echo 'FORCE_RESCRAPE=1' >> .env
+
+/home/jbi/Git/2025-ukraine-law-chatbot/.venv/bin/python 1_fetch_catalogue.py
+/home/jbi/Git/2025-ukraine-law-chatbot/.venv/bin/python 2_scrape_laws.py
+/home/jbi/Git/2025-ukraine-law-chatbot/.venv/bin/python 6_retry_failed_ingest.py
+/home/jbi/Git/2025-ukraine-law-chatbot/.venv/bin/python 3_chunk_embed.py
+```
+
+Increase `CATALOGUE_OFFSET` by `300` for the next batch.
+
+Or run the same flow with one command:
+
+```bash
+# Terminal 1
+bash 0_start_postgres_tunnel.sh
+
+# Terminal 2
+bash run_batch.sh 1200
+
+# Optional: allow a no-op run when offset has no remaining rows
+bash run_batch.sh 1200 300 --allow-empty
+```
+
+`run_batch.sh` sets `CATALOGUE_OFFSET`, `MAX_LAWS` (default `300`), and `FORCE_RESCRAPE=1`, then runs:
+`1_fetch_catalogue.py` -> `2_scrape_laws.py` -> `6_retry_failed_ingest.py` -> `3_chunk_embed.py`.
+By default it stops early if the filtered catalogue is empty, to avoid silent no-op batches.
 
 ## Usage
 
