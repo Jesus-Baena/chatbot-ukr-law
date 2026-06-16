@@ -2,7 +2,7 @@
 Step 3: Chunk law texts, generate embeddings, upsert to Qdrant
 
 Reads data/laws/*.json, chunks each section, embeds with
-mxbai-embed-large via Ollama, and upserts to Qdrant.
+Gemini gemini-embedding-001, and upserts to Qdrant.
 
 Cross-lingual queries (English → Ukrainian docs) work out of the box.
 """

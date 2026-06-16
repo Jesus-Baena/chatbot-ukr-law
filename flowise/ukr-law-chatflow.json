@@ -1,0 +1,61 @@
+{
+  "_note": "Build spec for the Ukraine-law RAG chatflow. Replace this file with the real Flowise export (Export Chatflow) once built in the UI. See README.md in this folder. Kept in git because Flowise flows otherwise live only in Supabase and are lost on schema drop.",
+  "chatflow": {
+    "name": "Ukraine Law Paralegal RAG",
+    "isPublic": true,
+    "returnSourceDocuments": true,
+    "nodes": [
+      {
+        "type": "googleGenerativeAIEmbeddings",
+        "label": "Gemini Embeddings",
+        "params": {
+          "modelName": "gemini-embedding-001",
+          "taskType": "RETRIEVAL_QUERY",
+          "outputDimensionality": 1536,
+          "credential": "GOOGLE_AI_API_KEY"
+        },
+        "_note": "Dimension MUST equal the collections' EMBED_DIM (default 1536). If this node cannot set outputDimensionality, rebuild collections at 3072 and set this to 3072."
+      },
+      {
+        "type": "qdrant",
+        "label": "Qdrant — Rada corpus",
+        "params": {
+          "qdrantServerUrl": "http://storage_qdrant:6333",
+          "qdrantCollection": "rada_legislation",
+          "topK": 4,
+          "credential": "QDRANT_API_KEY_ASCII"
+        }
+      },
+      {
+        "type": "qdrant",
+        "label": "Qdrant — Curated humanitarian KB",
+        "params": {
+          "qdrantServerUrl": "http://storage_qdrant:6333",
+          "qdrantCollection": "curated_legislation",
+          "topK": 3,
+          "credential": "QDRANT_API_KEY_ASCII",
+          "metadataFilter": { "humanitarian_specific": true }
+        },
+        "_note": "Combine with the Rada retriever via a fusion / compose-retrievers node, or a Tool Agent with two retriever tools. MVP fallback: drop this node and use the Rada retriever alone."
+      },
+      {
+        "type": "chatGoogleGenerativeAI",
+        "label": "Gemini (generation)",
+        "params": {
+          "modelName": "gemini-2.0-flash",
+          "temperature": 0.2,
+          "credential": "GOOGLE_AI_API_KEY",
+          "systemMessagePrompt": "You are a legal research assistant specializing in Ukrainian legislation.\nYou answer questions about Ukrainian law based on retrieved legal text excerpts.\n\nGuidelines:\n- Base your answer strictly on the provided legal excerpts\n- Cite the specific law title and article/section when possible\n- If the excerpts don't fully answer the question, say so clearly\n- You may answer in English even if the source texts are in Ukrainian\n- Note the enactment date of relevant laws, especially for martial law context\n- Be precise about legal rights, obligations, and procedures"
+        }
+      },
+      {
+        "type": "conversationalRetrievalQAChain",
+        "label": "Retrieval QA Chain",
+        "params": {
+          "returnSourceDocuments": true
+        },
+        "_note": "Wire: embeddings + retriever(s) + Gemini LLM. Enable Return Source Documents."
+      }
+    ]
+  }
+}

@@ -1,32 +1,43 @@
 # rada-rag: Ukrainian Legislation RAG Pipeline
 
-Updatable RAG knowledge base built from Verkhovna Rada legislation.
+Updatable RAG knowledge base built from Verkhovna Rada legislation, plus a
+hand-curated humanitarian knowledgebase, served to a chat UI via Flowise.
 
 ## Architecture
 
 ```
-data.rada.gov.ua (catalogue JSON)
-        ↓  [1_fetch_catalogue.py]
-    catalogue.json  (law IDs + metadata)
-        ↓  [2_scrape_laws.py]
-    Postgres `rada_raw_laws` (raw law HTML stored first)
-        ↓
-    laws/  (raw HTML -> structured JSON per law)
-        ↓  [3_chunk_embed.py]
-    Qdrant collection  (vectors + payloads)
-        ↑  [4_incremental_update.py]  <- run via n8n cron
-data.rada.gov.ua (new IDs since last run)
+INGEST (Rada corpus)                         INGEST (curated humanitarian KB)
+data.rada.gov.ua (catalogue JSON)            2025-ukraine-law-knowledgebase/
+   ↓ [1_fetch_catalogue.py]                     ↓ [7_ingest_knowledgebase.py]
+   ↓ [2_scrape_laws.py] → Postgres staging      Input/*.htm + metadata CSV
+   ↓ [3_chunk_embed.py]                          ↓ (Gemini embeddings)
+   ↓ (Gemini embeddings)                    Qdrant: curated_legislation
+Qdrant: rada_legislation
+   ↑ [4_incremental_update.py] (n8n cron)
+   ↺ [8_reembed_to_gemini.py] (migration backfill from Postgres staging)
+
+SERVE
+index.html  →  Flowise chatflow (Gemini embeddings → Qdrant ×2 → Gemini answer)
+            →  { text, sourceDocuments }
 ```
 
 ## Stack
 
 - Scraper: `requests` + `BeautifulSoup` (`lxml`)
 - Extraction: Docling service (`DOCLING_API_URL`) with HTML fallback parser
-- Embeddings: `mxbai-embed-large` via Ollama
-- Vector store: Qdrant
+- **Embeddings: Google Gemini `gemini-embedding-001`** (migrated from Ollama
+  `mxbai-embed-large`; query/passage handled by `task_type`, not a text prefix)
+- Vector store: Qdrant — two collections: `rada_legislation` (auto-scraped) and
+  `curated_legislation` (curated humanitarian KB with UtilityScore/Topics metadata)
 - Staging store: PostgreSQL (`DATABASE_URL`) for extracted law text + metadata
-- RAG query: Ollama chat model
+- **Serving / generation: Flowise chatflow with Gemini** (`flowise/`), called by `index.html`
 - Orchestration: n8n (incremental updates)
+
+> **Embedding migration:** the corpus was originally embedded with Ollama
+> `mxbai-embed-large` (1024-d). It is being rebuilt with Gemini at `EMBED_DIM`
+> (default 1536) — see `8_reembed_to_gemini.py`. Query and passage embeddings
+> must use the **same model and dimension**, including inside the Flowise flow
+> (`flowise/README.md`).
 
 ## Setup
 
@@ -132,10 +143,25 @@ python 4_incremental_update.py
 # Retry only failed law files and vectorize recovered ones
 python 6_retry_failed_ingest.py
 
-# Query
+# Query (CLI spot-check — Gemini end-to-end across both collections)
 python 5_query.py "права внутрішньо переміщених осіб"
 python 5_query.py "IDP rights during martial law"
 ```
+
+## Embedding migration & curated knowledgebase
+
+```bash
+# Re-embed the Rada corpus with Gemini, sourced from Postgres staging (no re-scrape).
+# Build into a versioned collection for zero-downtime switch-over, or --recreate in place.
+python 8_reembed_to_gemini.py --limit 5            # smoke test first
+python 8_reembed_to_gemini.py                      # full backfill into rada_legislation
+
+# Ingest the curated humanitarian KB into its own collection
+python 7_ingest_knowledgebase.py --kb-path ../2025-ukraine-law-knowledgebase/004_Knowledge_Base
+```
+
+Both require `GOOGLE_AI_API_KEY` and Qdrant access. The Flowise serving layer is
+documented in [`flowise/README.md`](flowise/README.md).
 
 ## Scope Filtering
 
@@ -158,6 +184,11 @@ Each row also records the UTC date when that law was last embedded/backfilled, a
 | `2_scrape_laws.py` | Scrape full text from zakon.rada.gov.ua |
 | `3_chunk_embed.py` | Chunk, embed, upsert to Qdrant |
 | `4_incremental_update.py` | Delta updates (new laws since last run) |
-| `5_query.py` | RAG query interface |
+| `5_query.py` | RAG query interface (CLI, Gemini end-to-end) |
+| `6_retry_failed_ingest.py` | Retry failed law files and vectorize recovered ones |
+| `7_ingest_knowledgebase.py` | Ingest curated humanitarian KB → `curated_legislation` |
+| `8_reembed_to_gemini.py` | Re-embed Rada corpus with Gemini from Postgres staging |
+| `index.html` | Chat frontend (calls the Flowise prediction endpoint) |
+| `flowise/` | Flowise chatflow build spec + export (serving layer) |
 | `config.py` | Shared config and constants |
 | `docker-compose.yml` | Qdrant service |

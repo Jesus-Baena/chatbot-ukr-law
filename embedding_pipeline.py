@@ -1,4 +1,5 @@
 import json
+import math
 import time
 import uuid
 
@@ -22,7 +23,10 @@ from config import (
     CHUNK_SIZE,
     EMBED_DIM,
     EMBED_MODEL,
-    OLLAMA_BASE_URL,
+    EMBED_TASK_DOCUMENT,
+    EMBED_TASK_QUERY,
+    GEMINI_API_BASE,
+    GEMINI_API_KEY,
     PASSAGE_PREFIX,
     QDRANT_COLLECTION,
     QUERY_PREFIX,
@@ -48,65 +52,115 @@ def _is_low_information_chunk(text: str) -> bool:
     return False
 
 
-def embed_via_ollama(texts: list[str], max_retries: int = 20, retry_wait: int = 30) -> list[list[float]]:
-    """Embed a batch of texts using mxbai-embed-large on Ollama.
+def _l2_normalize(vector: list[float]) -> list[float]:
+    """L2-normalize a vector (recommended for Gemini dims other than 3072)."""
+    norm = math.sqrt(sum(component * component for component in vector))
+    if norm == 0.0:
+        return vector
+    return [component / norm for component in vector]
 
-    Retries up to max_retries times with retry_wait-second pauses on
-    connection errors (the remote Ollama server can go offline temporarily).
+
+def embed_via_gemini(
+    texts: list[str],
+    task_type: str,
+    max_retries: int = 10,
+    retry_wait: int = 15,
+) -> list[list[float]]:
+    """Embed a batch of texts with Google Gemini ``gemini-embedding-001``.
+
+    Uses the synchronous ``batchEmbedContents`` endpoint. ``task_type`` selects
+    query vs. passage asymmetry (RETRIEVAL_QUERY / RETRIEVAL_DOCUMENT) — this
+    replaces the old mxbai text prefix. Retries on rate limits (429) and
+    transient server/connection errors. Truncated dims (< 3072) are
+    L2-normalized as recommended by Google.
     """
-    base_url = OLLAMA_BASE_URL.rstrip("/")
+    if not GEMINI_API_KEY:
+        raise RuntimeError(
+            "Gemini API key missing — set GOOGLE_AI_API_KEY (or GEMINI_API_KEY)."
+        )
+
+    model_path = f"models/{EMBED_MODEL}"
+    url = f"{GEMINI_API_BASE.rstrip('/')}/{model_path}:batchEmbedContents"
+    body = {
+        "requests": [
+            {
+                "model": model_path,
+                "content": {"parts": [{"text": text}]},
+                "taskType": task_type,
+                "outputDimensionality": EMBED_DIM,
+            }
+            for text in texts
+        ]
+    }
+
     for attempt in range(max_retries):
         try:
             response = requests.post(
-                f"{base_url}/api/embed",
-                json={"model": EMBED_MODEL, "input": texts, "truncate": True},
+                url,
+                params={"key": GEMINI_API_KEY},
+                json=body,
                 timeout=120,
             )
+            if response.status_code in (429, 500, 503):
+                raise requests.exceptions.ConnectionError(
+                    f"Gemini transient HTTP {response.status_code}"
+                )
             response.raise_for_status()
-            return response.json()["embeddings"]
+            embeddings = [item["values"] for item in response.json()["embeddings"]]
+            if EMBED_DIM != 3072:
+                embeddings = [_l2_normalize(vector) for vector in embeddings]
+            return embeddings
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as exc:
             if attempt + 1 >= max_retries:
                 raise
-            print(f"\n  [embed] Ollama unreachable ({exc.__class__.__name__}), "
+            print(f"\n  [embed] Gemini unavailable ({exc.__class__.__name__}), "
                   f"retry {attempt + 1}/{max_retries} in {retry_wait}s …", flush=True)
             time.sleep(retry_wait)
 
 
 def embed_query(query: str) -> list[float]:
-    """Embed a single query string with the mxbai retrieval prefix."""
-    return embed_via_ollama([QUERY_PREFIX + query])[0]
+    """Embed a single query string for retrieval (RETRIEVAL_QUERY task)."""
+    return embed_via_gemini([QUERY_PREFIX + query], EMBED_TASK_QUERY)[0]
 
 
 
-def setup_qdrant(client: QdrantClient):
-    """Create Qdrant collection if it doesn't exist."""
+def setup_qdrant(
+    client: QdrantClient,
+    collection_name: str = QDRANT_COLLECTION,
+    extra_payload_indexes: dict | None = None,
+):
+    """Create a Qdrant collection (and its payload indexes) if it doesn't exist.
+
+    ``extra_payload_indexes`` maps additional field names to a Qdrant payload
+    schema (e.g. the curated collection's ``utility_score`` / ``topics`` fields).
+    """
     existing = [collection.name for collection in client.get_collections().collections]
-    if QDRANT_COLLECTION in existing:
-        print(f"✓ Collection '{QDRANT_COLLECTION}' exists")
+    if collection_name in existing:
+        print(f"✓ Collection '{collection_name}' exists")
         return
 
     client.create_collection(
-        collection_name=QDRANT_COLLECTION,
+        collection_name=collection_name,
         vectors_config=VectorParams(size=EMBED_DIM, distance=Distance.COSINE),
     )
 
     client.create_payload_index(
-        collection_name=QDRANT_COLLECTION,
+        collection_name=collection_name,
         field_name="law_id",
         field_schema=PayloadSchemaType.KEYWORD,
     )
     client.create_payload_index(
-        collection_name=QDRANT_COLLECTION,
+        collection_name=collection_name,
         field_name="category",
         field_schema=PayloadSchemaType.KEYWORD,
     )
     client.create_payload_index(
-        collection_name=QDRANT_COLLECTION,
+        collection_name=collection_name,
         field_name="enacted_date",
         field_schema=PayloadSchemaType.KEYWORD,
     )
     client.create_payload_index(
-        collection_name=QDRANT_COLLECTION,
+        collection_name=collection_name,
         field_name="text",
         field_schema=TextIndexParams(
             type="text",
@@ -116,7 +170,15 @@ def setup_qdrant(client: QdrantClient):
             lowercase=True,
         ),
     )
-    print(f"✓ Created collection '{QDRANT_COLLECTION}'")
+
+    for field_name, field_schema in (extra_payload_indexes or {}).items():
+        client.create_payload_index(
+            collection_name=collection_name,
+            field_name=field_name,
+            field_schema=field_schema,
+        )
+
+    print(f"✓ Created collection '{collection_name}'")
 
 
 _MD_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")   # [text](url) → text
@@ -211,12 +273,14 @@ def law_to_chunks(law: dict) -> list[dict]:
     return chunks
 
 
-def embed_chunks(chunks: list[dict], batch_size: int = 8) -> list[list[float]]:
-    """Embed chunk texts in batches using Ollama mxbai-embed-large."""
+def embed_chunks(chunks: list[dict], batch_size: int = 100) -> list[list[float]]:
+    """Embed chunk texts in batches using Gemini (RETRIEVAL_DOCUMENT task)."""
     texts = [PASSAGE_PREFIX + chunk["text"] for chunk in chunks]
     all_embeddings: list[list[float]] = []
     for i in range(0, len(texts), batch_size):
-        all_embeddings.extend(embed_via_ollama(texts[i : i + batch_size]))
+        all_embeddings.extend(
+            embed_via_gemini(texts[i : i + batch_size], EMBED_TASK_DOCUMENT)
+        )
     return all_embeddings
 
 
@@ -224,8 +288,9 @@ def upsert_to_qdrant(
     client: QdrantClient,
     chunks: list[dict],
     embeddings: list[list[float]],
+    collection_name: str = QDRANT_COLLECTION,
 ):
-    """Upsert chunk vectors and payloads to Qdrant."""
+    """Upsert chunk vectors and payloads to a Qdrant collection."""
     points = []
     for chunk, vector in zip(chunks, embeddings):
         point_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{chunk['law_id']}:{chunk['chunk_index']}"))
@@ -236,17 +301,17 @@ def upsert_to_qdrant(
     # Upload in batches to avoid Qdrant write-timeout on large payloads
     batch_size = 200
     for i in range(0, len(points), batch_size):
-        client.upsert(collection_name=QDRANT_COLLECTION, points=points[i:i + batch_size])
+        client.upsert(collection_name=collection_name, points=points[i:i + batch_size])
 
 
-def get_processed_ids(client: QdrantClient) -> set[str]:
-    """Get the set of law IDs already present in Qdrant."""
+def get_processed_ids(client: QdrantClient, collection_name: str = QDRANT_COLLECTION) -> set[str]:
+    """Get the set of law IDs already present in a Qdrant collection."""
     processed = set()
     offset = None
 
     while True:
         result, next_offset = client.scroll(
-            collection_name=QDRANT_COLLECTION,
+            collection_name=collection_name,
             scroll_filter=None,
             limit=1000,
             offset=offset,
@@ -263,10 +328,10 @@ def get_processed_ids(client: QdrantClient) -> set[str]:
     return processed
 
 
-def delete_law_from_qdrant(client: QdrantClient, law_id: str):
+def delete_law_from_qdrant(client: QdrantClient, law_id: str, collection_name: str = QDRANT_COLLECTION):
     """Remove all chunks for a law before re-indexing it."""
     client.delete(
-        collection_name=QDRANT_COLLECTION,
+        collection_name=collection_name,
         points_selector=Filter(
             must=[FieldCondition(key="law_id", match=MatchValue(value=law_id))]
         ),
