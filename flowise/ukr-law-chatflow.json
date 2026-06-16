@@ -11,10 +11,10 @@
         "params": {
           "modelName": "gemini-embedding-001",
           "taskType": "RETRIEVAL_QUERY",
-          "outputDimensionality": 1536,
+          "outputDimensionality": 3072,
           "credential": "GOOGLE_AI_API_KEY"
         },
-        "_note": "Dimension MUST equal the collections' EMBED_DIM (default 1536). If this node cannot set outputDimensionality, rebuild collections at 3072 and set this to 3072."
+        "_note": "Dimension MUST equal the collections' EMBED_DIM (3072). 3072 is gemini-embedding-001's native dimension, so most Flowise builds don't need to set outputDimensionality explicitly."
       },
       {
         "type": "qdrant",

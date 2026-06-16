@@ -63,8 +63,8 @@ DOCLING_API_URL = os.getenv("DOCLING_API_URL", "").strip()
 # Migrated from Ollama mxbai-embed-large (1024-d); see 8_reembed_to_gemini.py for the rebuild.
 EMBED_MODEL = os.getenv("EMBED_MODEL", "gemini-embedding-001").strip()
 # gemini-embedding-001 supports Matryoshka output dims 3072 (default) / 1536 / 768.
-# 1536 ≈ half the Qdrant storage of 3072 with negligible retrieval-quality loss.
-EMBED_DIM = int(os.getenv("EMBED_DIM", "1536"))
+# Using the full 3072 dims for maximum retrieval quality (vectors are already normalized).
+EMBED_DIM = int(os.getenv("EMBED_DIM", "3072"))
 # Gemini handles query/passage asymmetry via task types, not text prefixes.
 EMBED_TASK_DOCUMENT = "RETRIEVAL_DOCUMENT"
 EMBED_TASK_QUERY = "RETRIEVAL_QUERY"

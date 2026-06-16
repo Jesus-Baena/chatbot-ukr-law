@@ -14,14 +14,11 @@ reference) until it is replaced by a real export.
 ## ⚠️ Embedding-dimension parity (read first)
 
 Retrieval breaks silently if the query embedding doesn't match the indexed
-vectors. Both must use **Gemini `gemini-embedding-001`** and the **same output
-dimension** as the collections were built with (`EMBED_DIM`, default **1536**).
+vectors. Both must use **Gemini `gemini-embedding-001`** at the **same output
+dimension** as the collections were built with (`EMBED_DIM` = **3072**).
 
-- The embeddings node below must produce 1536-d query vectors.
-- If your Flowise `GoogleGenerativeAIEmbeddings` node can't set
-  `outputDimensionality`, rebuild the collections at **3072** instead
-  (`EMBED_DIM=3072` for `7_ingest_knowledgebase.py` / `8_reembed_to_gemini.py`)
-  so ingest and query dimensions match. Parity is what matters, not the value.
+- The embeddings node below must produce 3072-d query vectors. 3072 is the
+  model's native dimension, so most Flowise builds need no extra config.
 - Use task type **RETRIEVAL_QUERY** on the query side (passages were embedded
   with RETRIEVAL_DOCUMENT).
 

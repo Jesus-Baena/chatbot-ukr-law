@@ -35,7 +35,7 @@ index.html  →  Flowise chatflow (Gemini embeddings → Qdrant ×2 → Gemini a
 
 > **Embedding migration:** the corpus was originally embedded with Ollama
 > `mxbai-embed-large` (1024-d). It is being rebuilt with Gemini at `EMBED_DIM`
-> (default 1536) — see `8_reembed_to_gemini.py`. Query and passage embeddings
+> (3072) — see `8_reembed_to_gemini.py`. Query and passage embeddings
 > must use the **same model and dimension**, including inside the Flowise flow
 > (`flowise/README.md`).
 
