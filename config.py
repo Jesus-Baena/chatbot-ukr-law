@@ -47,7 +47,10 @@ LAW_BASE_URL = "https://zakon.rada.gov.ua/laws/show/{law_id}"
 # Qdrant
 QDRANT_URL = _first_env("QDRANT_URL", "QDRANT_API_URL", "QDRANT_UR", default="http://localhost:6333")
 QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
+# Auto-scraped Rada corpus (rebuilt with Gemini embeddings — see 8_reembed_to_gemini.py)
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "rada_legislation")
+# Hand-curated humanitarian knowledgebase, kept in a separate collection
+CURATED_COLLECTION = os.getenv("CURATED_COLLECTION", "curated_legislation")
 
 # Postgres (staging layer before Qdrant)
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
@@ -56,12 +59,23 @@ STAGING_STORE_RAW_JSON = _env_bool("STAGING_STORE_RAW_JSON", default=False)
 # Docling
 DOCLING_API_URL = os.getenv("DOCLING_API_URL", "").strip()
 
-# Embedding model — mxbai-embed-large on Ollama (1024-dim)
-EMBED_MODEL = "mxbai-embed-large:latest"
-EMBED_DIM = 1024  # mxbai-embed-large output dimension
-# mxbai uses a retrieval prefix for queries only; passages need no prefix
-QUERY_PREFIX = "Represent this sentence for searching relevant passages: "
+# Embedding model — Google Gemini gemini-embedding-001
+# Migrated from Ollama mxbai-embed-large (1024-d); see 8_reembed_to_gemini.py for the rebuild.
+EMBED_MODEL = os.getenv("EMBED_MODEL", "gemini-embedding-001").strip()
+# gemini-embedding-001 supports Matryoshka output dims 3072 (default) / 1536 / 768.
+# Using the full 3072 dims for maximum retrieval quality (vectors are already normalized).
+EMBED_DIM = int(os.getenv("EMBED_DIM", "3072"))
+# Gemini handles query/passage asymmetry via task types, not text prefixes.
+EMBED_TASK_DOCUMENT = "RETRIEVAL_DOCUMENT"
+EMBED_TASK_QUERY = "RETRIEVAL_QUERY"
+# Legacy mxbai prefixes — retained (empty) for backward compatibility; superseded by task types.
+QUERY_PREFIX = ""
 PASSAGE_PREFIX = ""
+
+# Google AI (Gemini) — one API key serves both embeddings and generation
+GEMINI_API_KEY = _first_env("GOOGLE_AI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY")
+GEMINI_API_BASE = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta").strip()
+GEMINI_CHAT_MODEL = os.getenv("GEMINI_CHAT_MODEL", "gemini-2.0-flash").strip()
 
 # Chunking
 CHUNK_SIZE = 400        # characters — safe for mxbai-embed-large on Ollama 0.20.2 (512-token context limit)

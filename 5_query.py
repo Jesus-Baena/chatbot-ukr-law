@@ -19,8 +19,8 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, Range
 
 from config import (
-    QDRANT_COLLECTION, EMBED_MODEL,
-    QUERY_PREFIX, OLLAMA_BASE_URL, OLLAMA_MODEL, REQUEST_TIMEOUT
+    QDRANT_COLLECTION, CURATED_COLLECTION,
+    GEMINI_API_KEY, GEMINI_API_BASE, GEMINI_CHAT_MODEL, REQUEST_TIMEOUT,
 )
 from service_clients import get_qdrant_client
 from embedding_pipeline import embed_query
@@ -40,52 +40,65 @@ Guidelines:
 - Be precise about legal rights, obligations, and procedures"""
 
 
-def preflight_ollama() -> None:
-    """Validate Ollama connectivity and confirm the configured model is available."""
-    base_url = OLLAMA_BASE_URL.rstrip("/")
-    timeout = max(20, REQUEST_TIMEOUT)
-
-    try:
-        response = requests.get(f"{base_url}/api/tags", timeout=timeout)
-        response.raise_for_status()
-    except requests.RequestException as exc:
+def preflight_gemini() -> None:
+    """Confirm a Gemini API key is configured before issuing requests."""
+    if not GEMINI_API_KEY:
         raise RuntimeError(
-            "Ollama is unreachable. Check OLLAMA_BASE_URL and network access. "
-            f"Endpoint: {base_url}/api/tags"
-        ) from exc
-
-    data = response.json() if response.content else {}
-    models = data.get("models", []) if isinstance(data, dict) else []
-    available = set()
-    for model in models:
-        if isinstance(model, dict) and model.get("name"):
-            available.add(model["name"])
-
-    if available and OLLAMA_MODEL not in available:
-        example = ", ".join(sorted(list(available))[:5])
-        raise RuntimeError(
-            f"Configured OLLAMA_MODEL '{OLLAMA_MODEL}' is not available on the server. "
-            f"Available models: {example}"
+            "Gemini API key missing — set GOOGLE_AI_API_KEY (or GEMINI_API_KEY) "
+            "in your environment / .env."
         )
 
-    if available and EMBED_MODEL not in available:
-        example = ", ".join(sorted(list(available))[:5])
-        raise RuntimeError(
-            f"Configured EMBED_MODEL '{EMBED_MODEL}' is not available on the server. "
-            f"Available models: {example}"
+
+def _search_collection(client: QdrantClient, query_vector: list[float],
+                       collection_name: str, search_filter, top_k: int) -> list[dict]:
+    """Run a single vector search against one collection and normalize hits."""
+    if hasattr(client, "query_points"):
+        results = client.query_points(
+            collection_name=collection_name,
+            query=query_vector,
+            query_filter=search_filter,
+            limit=top_k,
+            with_payload=True,
+        ).points
+    else:
+        results = client.search(
+            collection_name=collection_name,
+            query_vector=query_vector,
+            query_filter=search_filter,
+            limit=top_k,
+            with_payload=True,
         )
+
+    chunks = []
+    for hit in results:
+        p = hit.payload
+        chunks.append({
+            "score": round(hit.score, 3),
+            "text": p.get("text", ""),
+            "title": p.get("title", ""),
+            "law_id": p.get("law_id", ""),
+            "url": p.get("url", ""),
+            "enacted_date": p.get("enacted_date", ""),
+            "section_heading": p.get("section_heading", ""),
+            "source": p.get("source", collection_name),
+        })
+    return chunks
 
 
 def retrieve(query: str,
              client: QdrantClient, date_from: str = None,
-             category: str = None, top_k: int = TOP_K) -> list[dict]:
+             category: str = None, top_k: int = TOP_K,
+             collections: list[str] | None = None) -> list[dict]:
     """
-    Retrieve top-K relevant chunks from Qdrant.
-    
-    Embeds the query via Ollama mxbai-embed-large.
-    Optional filters: date_from, category.
+    Retrieve top-K relevant chunks across one or more Qdrant collections.
+
+    Embeds the query once via Gemini (RETRIEVAL_QUERY task), searches each
+    collection, then merges and re-sorts by score. Missing collections are
+    skipped gracefully. Optional filters: date_from, category.
     """
-    # Embed the query with the mxbai retrieval prefix
+    if collections is None:
+        collections = [QDRANT_COLLECTION, CURATED_COLLECTION]
+
     query_vector = embed_query(query)
 
     # Build optional filters
@@ -104,38 +117,17 @@ def retrieve(query: str,
 
     search_filter = Filter(must=filters) if filters else None
 
-    if hasattr(client, "query_points"):
-        query_result = client.query_points(
-            collection_name=QDRANT_COLLECTION,
-            query=query_vector,
-            query_filter=search_filter,
-            limit=top_k,
-            with_payload=True,
-        )
-        results = query_result.points
-    else:
-        results = client.search(
-            collection_name=QDRANT_COLLECTION,
-            query_vector=query_vector,
-            query_filter=search_filter,
-            limit=top_k,
-            with_payload=True,
-        )
+    merged: list[dict] = []
+    for collection_name in collections:
+        try:
+            merged.extend(
+                _search_collection(client, query_vector, collection_name, search_filter, top_k)
+            )
+        except Exception as exc:  # collection may not exist yet
+            print(f"  (skipping collection '{collection_name}': {exc})")
 
-    chunks = []
-    for hit in results:
-        p = hit.payload
-        chunks.append({
-            "score": round(hit.score, 3),
-            "text": p.get("text", ""),
-            "title": p.get("title", ""),
-            "law_id": p.get("law_id", ""),
-            "url": p.get("url", ""),
-            "enacted_date": p.get("enacted_date", ""),
-            "section_heading": p.get("section_heading", ""),
-        })
-
-    return chunks
+    merged.sort(key=lambda c: c["score"], reverse=True)
+    return merged[:top_k]
 
 
 def format_context(chunks: list[dict]) -> str:
@@ -148,8 +140,8 @@ def format_context(chunks: list[dict]) -> str:
     return "\n\n---\n\n".join(parts)
 
 
-def ask_ollama(query: str, context: str) -> str:
-    """Send query + retrieved context to Ollama for answer generation."""
+def ask_gemini(query: str, context: str) -> str:
+    """Send query + retrieved context to Gemini for answer generation."""
     prompt = f"""Based on the following excerpts from Ukrainian legislation, please answer this question:
 
 Question: {query}
@@ -160,25 +152,28 @@ Retrieved legal excerpts:
 
 Please provide a clear, accurate answer citing the relevant laws and articles."""
 
-    base_url = OLLAMA_BASE_URL.rstrip("/")
+    base_url = GEMINI_API_BASE.rstrip("/")
+    url = f"{base_url}/models/{GEMINI_CHAT_MODEL}:generateContent"
     request_timeout = max(60, REQUEST_TIMEOUT * 3)
 
     payload = {
-        "model": OLLAMA_MODEL,
-        "system": SYSTEM_PROMPT,
-        "prompt": prompt,
-        "stream": False,
+        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
     }
     response = requests.post(
-        f"{base_url}/api/generate",
+        url,
+        params={"key": GEMINI_API_KEY},
         json=payload,
         timeout=request_timeout,
     )
     response.raise_for_status()
     data = response.json()
-    answer = data.get("response", "").strip()
+    try:
+        answer = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except (KeyError, IndexError):
+        answer = ""
     if not answer:
-        raise RuntimeError("Ollama returned an empty response")
+        raise RuntimeError(f"Gemini returned an empty response: {data}")
     return answer
 
 
@@ -196,10 +191,9 @@ def main():
     if args.filter_date:
         print(f"   Date filter: ≥ {args.filter_date}")
 
-    # Preflight checks before loading heavy local models
-    print("\nChecking Ollama availability...")
-    preflight_ollama()
-    print(f"Ollama reachable at {OLLAMA_BASE_URL}, chat={OLLAMA_MODEL}, embed={EMBED_MODEL}")
+    # Preflight check
+    preflight_gemini()
+    print(f"Using Gemini chat model: {GEMINI_CHAT_MODEL}")
 
     # Client
     client = get_qdrant_client()
@@ -226,9 +220,9 @@ def main():
             print(f"  {c['text'][:200]}...")
 
     # Generate answer
-    print("\nGenerating answer with Ollama...\n")
+    print("\nGenerating answer with Gemini...\n")
     context = format_context(chunks)
-    answer = ask_ollama(query, context)
+    answer = ask_gemini(query, context)
 
     print("=" * 60)
     print(answer)

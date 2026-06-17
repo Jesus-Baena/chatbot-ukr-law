@@ -232,6 +232,12 @@
   }
   console.log("sessionId:", sessionId);
 
+  // Flowise chatflow prediction endpoint (RAG backend).
+  // Override at deploy time via `window.FLOWISE_PREDICTION_URL` if needed.
+  const FLOWISE_PREDICTION_URL =
+    window.FLOWISE_PREDICTION_URL ||
+    "https://flowise.baena.info/api/v1/prediction/REPLACE_WITH_CHATFLOW_ID";
+
   // 2) Setup chat logic
   const chatBox = document.getElementById("chatBox");
   const loadingIndicator = document.getElementById("loadingIndicator");
@@ -287,7 +293,39 @@
   }
 
   /**
-   * Sends the user's chatInput and sessionId to the n8n webhook.
+   * Renders a "Sources" bubble listing the cited laws returned by Flowise.
+   * @param {Array} sourceDocuments - Flowise sourceDocuments [{ pageContent, metadata }]
+   */
+  function renderSources(sourceDocuments) {
+    if (!Array.isArray(sourceDocuments) || sourceDocuments.length === 0) return;
+
+    const seen = new Set();
+    const items = [];
+    for (const doc of sourceDocuments) {
+      const meta = (doc && doc.metadata) || {};
+      const title = meta.title || meta.law_id || "Source";
+      const url = meta.url || "";
+      const key = url || title;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const safeTitle = escapeHtml(String(title));
+      items.push(
+        url
+          ? `<li><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${safeTitle}</a></li>`
+          : `<li>${safeTitle}</li>`
+      );
+    }
+    if (items.length === 0) return;
+
+    const div = document.createElement("div");
+    div.classList.add("chatInput", "bot");
+    div.innerHTML = `<b>Sources:</b><ul style="margin:6px 0 0 18px;padding:0;">${items.join("")}</ul>`;
+    chatBox.appendChild(div);
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  /**
+   * Sends the user's question and sessionId to the Flowise RAG endpoint.
    */
   async function sendchatInput() {
     const chatInput = userInput.value.trim();
@@ -302,14 +340,13 @@
     loadingIndicator.classList.add("active");
 
     try {
-      // Build request body
+      // Flowise prediction payload: { question, overrideConfig: { sessionId } }
       const requestBody = {
-        chatInput: chatInput,
-        sessionId: sessionId,
+        question: chatInput,
+        overrideConfig: { sessionId: sessionId },
       };
 
-      // Make POST request to your n8n webhook
-      const response = await fetch("https://n8n.srv809281.hstgr.cloud/webhook/ukr-law-adviser", {
+      const response = await fetch(FLOWISE_PREDICTION_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
@@ -319,20 +356,16 @@
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // The server might return any JSON; adapt to your needs
+      // Flowise returns { text, sourceDocuments, ... }
       const data = await response.json();
-      console.log("Response from n8n:", data);
+      console.log("Response from Flowise:", data);
 
-      // Suppose your n8n workflow returns something like { output: "...", ... }
-      if (data && data.output) {
-        addchatInput("bot", data.output);
-      } else {
-        // If there's no 'output' property, just show a fallback
-        addchatInput("bot", "No output received from server.");
-      }
+      const answer = data && (data.text || data.answer);
+      addchatInput("bot", answer || "No answer received from server.");
+      if (data) renderSources(data.sourceDocuments);
     } catch (error) {
       console.error("Error during fetch:", error);
-      addchatInput("bot", `Error: ${error.chatInput}`);
+      addchatInput("bot", `Error: ${error.message}`);
     } finally {
       loadingIndicator.classList.remove("active");
     }
