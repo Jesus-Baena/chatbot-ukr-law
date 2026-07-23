@@ -37,7 +37,7 @@ dimension** as the collections were built with (`EMBED_DIM` = **3072**).
      node; otherwise a Tool Agent with two retriever tools). If your Flowise
      build has neither, ship MVP with `rada_legislation` as the single retriever
      and add the curated retriever as a fast follow.
-4. **ChatGoogleGenerativeAI (Gemini)** — model `gemini-2.0-flash` (configurable).
+4. **ChatGoogleGenerativeAI (Gemini)** — model `gemini-2.5-flash` (configurable).
    System prompt below.
 5. **Conversational Retrieval QA Chain** wiring embeddings + retriever(s) + LLM;
    enable **Return Source Documents** so the frontend can render citations.

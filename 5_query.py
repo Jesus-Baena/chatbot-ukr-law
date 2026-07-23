@@ -23,7 +23,7 @@ from config import (
     GEMINI_API_KEY, GEMINI_API_BASE, GEMINI_CHAT_MODEL, REQUEST_TIMEOUT,
 )
 from service_clients import get_qdrant_client
-from embedding_pipeline import embed_query
+from embedding_pipeline import date_to_int, embed_query
 
 
 TOP_K = 6  # number of chunks to retrieve
@@ -104,10 +104,17 @@ def retrieve(query: str,
     # Build optional filters
     filters = []
     if date_from:
-        filters.append(FieldCondition(
-            key="enacted_date",
-            range=Range(gte=date_from)
-        ))
+        date_from_ts = date_to_int(date_from)
+        if date_from_ts is not None:
+            # Range on the sortable integer date (enacted_date is a keyword field,
+            # which Qdrant cannot range-filter). Laws without a parseable date are
+            # excluded from a date-bounded query.
+            filters.append(FieldCondition(
+                key="enacted_date_ts",
+                range=Range(gte=date_from_ts)
+            ))
+        else:
+            print(f"  (ignoring unparseable --filter-date '{date_from}')")
     if category:
         from qdrant_client.models import MatchValue
         filters.append(FieldCondition(

@@ -75,11 +75,16 @@ PASSAGE_PREFIX = ""
 # Google AI (Gemini) — one API key serves both embeddings and generation
 GEMINI_API_KEY = _first_env("GOOGLE_AI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY")
 GEMINI_API_BASE = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta").strip()
-GEMINI_CHAT_MODEL = os.getenv("GEMINI_CHAT_MODEL", "gemini-2.0-flash").strip()
+# gemini-2.0-flash was retired by Google (returns 404) — default to 2.5-flash.
+GEMINI_CHAT_MODEL = os.getenv("GEMINI_CHAT_MODEL", "gemini-2.5-flash").strip()
 
 # Chunking
-CHUNK_SIZE = 400        # characters — safe for mxbai-embed-large on Ollama 0.20.2 (512-token context limit)
-CHUNK_OVERLAP = 80      # character overlap between chunks
+# Sized for gemini-embedding-001 (2048-token input limit). ~1800 chars ≈ 450
+# Ukrainian tokens, keeping whole legal articles intact per chunk. The retired
+# Ollama mxbai-embed-large used 400 (its 512-token context) — do NOT revert
+# without re-embedding, and regenerate INDEXED_LAWS.md chunk counts after a change.
+CHUNK_SIZE = 1800       # characters per chunk
+CHUNK_OVERLAP = 300     # character overlap between chunks (~16%)
 
 # Scraping
 REQUEST_DELAY = 1.2     # seconds between requests — be polite
