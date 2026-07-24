@@ -27,6 +27,17 @@ def _env_bool(name: str, default: bool = False) -> bool:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
+
+def env_int(name: str, default: int) -> int:
+    """Read an int env var, falling back to default when unset/empty/invalid."""
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        return int(raw.strip())
+    except ValueError:
+        return default
+
 # Paths
 BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
@@ -77,9 +88,15 @@ GEMINI_API_KEY = _first_env("GOOGLE_AI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_K
 GEMINI_API_BASE = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googleapis.com/v1beta").strip()
 GEMINI_CHAT_MODEL = os.getenv("GEMINI_CHAT_MODEL", "gemini-2.0-flash").strip()
 
-# Chunking
-CHUNK_SIZE = 400        # characters — safe for mxbai-embed-large on Ollama 0.20.2 (512-token context limit)
-CHUNK_OVERLAP = 80      # character overlap between chunks
+# Chunking (character-based; splits are word-boundary aligned).
+# Sized for Gemini gemini-embedding-001 (2048-token input). The old 400-char
+# window was a leftover from mxbai-embed-large's 512-token limit and produced
+# heavy over-fragmentation of legal text; ~1200 chars keeps most individual
+# articles whole while staying well within Gemini's input budget.
+# NOTE: changing these requires re-embedding the corpus to keep chunking
+# consistent — rebuild with `8_reembed_to_gemini.py --recreate`.
+CHUNK_SIZE = env_int("CHUNK_SIZE", 1200)       # characters per chunk
+CHUNK_OVERLAP = env_int("CHUNK_OVERLAP", 200)  # character overlap between chunks
 
 # Scraping
 REQUEST_DELAY = 1.2     # seconds between requests — be polite

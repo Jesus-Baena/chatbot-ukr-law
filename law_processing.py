@@ -1,11 +1,10 @@
-import os
 import re
 import time
 
 import requests
 from bs4 import BeautifulSoup
 
-from config import DOCLING_API_URL, MAX_RETRIES, REQUEST_TIMEOUT
+from config import DOCLING_API_URL, MAX_RETRIES, REQUEST_TIMEOUT, env_int
 from service_clients import require_docling_url
 
 
@@ -391,9 +390,9 @@ def extract_law(html: str, law_id: str, url: str) -> dict | None:
 # sections (see review finding #1: ~96% of the indexed corpus landed with 1–3
 # sections). These thresholds flag that pattern without penalising genuinely
 # short decrees, which legitimately have 1–2 short sections.
-LOW_QUALITY_MIN_CHARS = int(os.getenv("LOW_QUALITY_MIN_CHARS", "2000"))
-LOW_QUALITY_MAX_SECTIONS = int(os.getenv("LOW_QUALITY_MAX_SECTIONS", "2"))
-THIN_MAX_CHARS = int(os.getenv("THIN_MAX_CHARS", "200"))
+LOW_QUALITY_MIN_CHARS = env_int("LOW_QUALITY_MIN_CHARS", 2000)
+LOW_QUALITY_MAX_SECTIONS = env_int("LOW_QUALITY_MAX_SECTIONS", 2)
+THIN_MAX_CHARS = env_int("THIN_MAX_CHARS", 200)
 
 _docling_warning_emitted = False
 

@@ -180,6 +180,15 @@ documented in [`flowise/README.md`](flowise/README.md).
   python corpus_quality_report.py --worst 25 # largest suspect laws
   ```
 
+- **Hold back collapsed laws.** Pass `--skip-suspect` to keep `suspect` laws out
+  of the index until they are re-extracted, on both the incremental embed and
+  the full rebuild:
+
+  ```bash
+  python 3_chunk_embed.py --skip-suspect
+  python 8_reembed_to_gemini.py --recreate --skip-suspect
+  ```
+
 - **Incremental updates** (`4_incremental_update.py`) fetch through the same
   robust catalogue source as the bootstrap (`catalogue_source.py`) — the old
   path assumed `zak.json` returned a flat law list and silently ingested
@@ -187,6 +196,25 @@ documented in [`flowise/README.md`](flowise/README.md).
   a fully-processed run, to the newest processed enactment date on a run capped
   by `INCREMENTAL_MAX_LAWS`, and **not at all** when every live source is
   unavailable — so no update window is silently skipped.
+
+## Chunking
+
+Chunking is tuned for Gemini `gemini-embedding-001` (2048-token input):
+`CHUNK_SIZE=1200`, `CHUNK_OVERLAP=200` characters (word-boundary aligned), both
+overridable via `.env`. The earlier 400-char window was a leftover from the
+mxbai-embed-large 512-token limit and heavily over-fragmented legal text.
+
+**Changing chunk size requires a full re-embed** so the whole collection is
+chunked consistently (mixing sizes degrades retrieval). Rebuild from Postgres
+staging — no re-scrape needed:
+
+```bash
+python 8_reembed_to_gemini.py --recreate                 # apply new chunk size in place
+python 8_reembed_to_gemini.py --recreate --skip-suspect  # + drop collapsed laws
+```
+
+`--recreate` drops and rebuilds the collection, so no stale chunks are left
+behind from the previous (smaller) chunking.
 
 ## Scope Filtering
 

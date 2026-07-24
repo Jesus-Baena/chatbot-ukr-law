@@ -2,13 +2,15 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+from config import CHUNK_OVERLAP, CHUNK_SIZE, QDRANT_COLLECTION
+
 BASE_DIR = Path(__file__).parent
 TRACKER_PATH = BASE_DIR / "INDEXED_LAWS.md"
 
 _TABLE_HEADER = [
     "# Indexed Laws Tracker",
     "",
-    "This table tracks laws currently embedded into the Qdrant collection (`rada_legislation_mxbai`).",
+    f"This table tracks laws currently embedded into the Qdrant collection (`{QDRANT_COLLECTION}`).",
     "",
     "| Law ID | English Title | Sections | Chunks Indexed | Indexed Date (UTC) | Source URL |",
     "|---|---|---:|---:|---|---|",
@@ -98,7 +100,7 @@ def _write_tracker(rows: dict[str, dict]):
 
     lines.extend(_NOTES_HEADER)
     lines.append(f"- Indexed total: **{total_chunks}** chunks/vectors.")
-    lines.append("- Chunk counts are based on the current chunking config (`CHUNK_SIZE=400`, `CHUNK_OVERLAP=80`).")
+    lines.append(f"- Chunk counts are based on the current chunking config (`CHUNK_SIZE={CHUNK_SIZE}`, `CHUNK_OVERLAP={CHUNK_OVERLAP}`).")
     lines.append("- Indexed Date (UTC) records when each law was last embedded/backfilled into the tracker.")
     lines.append("- If chunking settings or extraction logic changes, regenerate this table after re-indexing.")
 

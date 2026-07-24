@@ -21,13 +21,12 @@ State tracked in data/state.json: { "last_run": "2024-01-15", ... }
 """
 
 import json
-import os
 import time
 from datetime import datetime, date
 
 from config import (
     DATABASE_URL, LAWS_DIR, STATE_PATH, QDRANT_COLLECTION,
-    REQUEST_DELAY,
+    REQUEST_DELAY, env_int,
 )
 from qdrant_client import QdrantClient
 
@@ -54,7 +53,7 @@ from staging_db import stage_raw_law_response
 
 # Upper bound on laws processed per run. A first run (last_run defaults far in
 # the past) would otherwise try to ingest the entire back-catalogue in one go.
-INCREMENTAL_MAX_LAWS = int(os.getenv("INCREMENTAL_MAX_LAWS", "500"))
+INCREMENTAL_MAX_LAWS = env_int("INCREMENTAL_MAX_LAWS", 500)
 
 
 def load_state() -> dict:
