@@ -2,378 +2,807 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Ukrainian NGO Legislation Adviser</title>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Paralegal Advisor — Ukrainian Humanitarian Law</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Public+Sans:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+
+  <!-- Pinned + Subresource Integrity so a compromised/updated CDN file can't inject code. -->
+  <script
+    src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"
+    integrity="sha384-/TQbtLCAerC3jgaim+N78RZSDYV7ryeoBCVqTuzRrFec2akfBkHS7ACQ3PQhvMVi"
+    crossorigin="anonymous"></script>
+  <script
+    src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"
+    integrity="sha384-+VfUPEb0PdtChMwmBcBmykRMDd+v6D/oFmB3rZM/puCMDYcIvF968OimRh4KQY9a"
+    crossorigin="anonymous"></script>
+
   <style>
-    /* CSS Variables */
     :root {
-      --primary-color: #2B638B;
-      --primary-color-gradient: linear-gradient(135deg, #2B638B, #1E4A68);
-      --secondary-color: #f0f8ff;  /* changed to a lighter background */
-      --user-chatInput-bg: #dcf8c6;
-      --bot-chatInput-bg: #e3f2fd;
-      --text-color: #333;
-      --border-radius: 15px;
-      --box-shadow-color: rgba(0, 0, 0, 0.1);
+      --navy: #1e3a5f;
+      --navy-strong: #0f172a;
+      --gold: #e8d5a3;
+      --page: #f6f8fa;
+      --card: #ffffff;
+      --border: #e2e8f0;
+      --border-soft: #eef2f6;
+      --text: #1e293b;
+      --text-strong: #0f172a;
+      --muted: #64748b;
+      --faint: #94a3b8;
+      --slate-100: #f1f5f9;
+      --slate-50: #f8fafc;
+      --link: #1d4ed8;
+    }
+
+    html, body { margin: 0; padding: 0; height: 100%; background: var(--page); }
+    * { box-sizing: border-box; }
+    a { color: var(--link); }
+    a:hover { color: #1e40af; }
+
+    @keyframes pulse-dot {
+      0%, 80%, 100% { opacity: 0.25; transform: scale(0.85); }
+      40% { opacity: 1; transform: scale(1); }
+    }
+    @keyframes msg-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      /* Added a soft gradient background */
-      background: linear-gradient(to bottom right, #cfdcf3, #f0f8ff);
-      margin: 0;
-      padding: 20px;
-      box-sizing: border-box;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      min-height: 100vh;
+      font-family: 'Public Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: var(--text);
     }
 
-    .chat-container {
-      /* Make it wider */
-      width: 90%;
-      max-width: 1000px;  /* you can adjust to your liking */
-      background: white;
-      border-radius: var(--border-radius);
-      box-shadow: 0 4px 15px var(--box-shadow-color);
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      /* Increased height a bit for more vertical space */
-      height: 85vh;
-      max-height: 900px;
-      margin: 0 auto;
+    .app { display: flex; flex-direction: column; height: 100vh; }
+
+    /* ---------- Header ---------- */
+    .app-header {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+      padding: 12px 24px; background: var(--card); border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .header-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .back-link {
+      display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+      text-decoration: none; color: var(--muted);
+    }
+    .back-link:hover { color: var(--text); }
+    .divider-v { width: 1px; height: 20px; background: var(--border); }
+    .brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+    .brand-badge {
+      width: 32px; height: 32px; border-radius: 8px; background: var(--navy);
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .brand-title {
+      font-size: 15px; font-weight: 700; white-space: nowrap; overflow: hidden;
+      text-overflow: ellipsis; color: var(--text);
+    }
+    .brand-subtitle { font-size: 12px; color: var(--muted); white-space: nowrap; }
+
+    .header-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+
+    .lang-toggle { display: flex; background: var(--slate-100); border-radius: 8px; padding: 3px; }
+    .lang-btn {
+      border: none; cursor: pointer; font-family: inherit; font-size: 12px; font-weight: 600;
+      padding: 5px 12px; border-radius: 6px; background: transparent; color: var(--muted);
+    }
+    .lang-btn.active { background: #fff; color: var(--navy); box-shadow: 0 1px 3px rgba(15,23,42,0.12); }
+
+    .dl-wrap { position: relative; }
+    .dl-wrap[hidden] { display: none; }
+    .dl-button {
+      display: flex; align-items: center; gap: 7px; border: 1px solid #cbd5e1; background: #fff;
+      cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 600; color: #334155;
+      padding: 7px 14px; border-radius: 8px;
+    }
+    .dl-button:hover { background: var(--slate-50); border-color: #94a3b8; }
+    .dl-menu {
+      position: absolute; top: calc(100% + 6px); right: 0; background: #fff;
+      border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(15,23,42,0.12);
+      padding: 6px; z-index: 50; min-width: 220px;
+    }
+    .dl-menu[hidden] { display: none; }
+    .dl-item {
+      display: flex; align-items: center; gap: 10px; width: 100%; border: none; background: transparent;
+      cursor: pointer; font-family: inherit; font-size: 13px; font-weight: 500; color: #334155;
+      padding: 9px 10px; border-radius: 7px; text-align: left;
+    }
+    .dl-item:hover { background: var(--slate-100); }
+    .dl-item small { display: block; font-size: 11px; color: var(--faint); font-weight: 400; }
+
+    .article-link {
+      display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600;
+      text-decoration: none; color: var(--muted); padding: 7px 10px; border-radius: 8px;
+    }
+    .article-link:hover { background: var(--slate-100); color: var(--text); }
+
+    /* ---------- Disclaimer ---------- */
+    .disclaimer {
+      display: flex; align-items: center; gap: 12px; padding: 10px 24px;
+      background: #fdf6e3; border-bottom: 1px solid #f0e2b6; flex-shrink: 0;
+    }
+    .disclaimer[hidden] { display: none; }
+    .disclaimer-text { font-size: 13px; color: #713f12; line-height: 1.45; flex: 1; }
+    .disclaimer-close {
+      border: none; background: transparent; cursor: pointer; color: #a16207; padding: 4px;
+      border-radius: 6px; flex-shrink: 0; display: flex;
+    }
+    .disclaimer-close:hover { background: rgba(161,98,7,0.1); }
+
+    /* ---------- Scroll / conversation ---------- */
+    .scroll { flex: 1; overflow-y: auto; min-height: 0; }
+    .scroll-inner { max-width: 760px; margin: 0 auto; padding: 32px 24px 24px; }
+
+    .empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 56px 0 24px; }
+    .empty-badge {
+      width: 56px; height: 56px; border-radius: 16px; background: var(--navy);
+      display: flex; align-items: center; justify-content: center; margin-bottom: 20px;
+      box-shadow: 0 8px 20px rgba(30,58,95,0.25);
+    }
+    .empty-title {
+      font-family: 'Source Serif 4', serif; font-size: 26px; font-weight: 700;
+      margin: 0 0 10px; color: var(--text-strong);
+    }
+    .empty-desc {
+      font-size: 14.5px; line-height: 1.6; color: #475569; max-width: 520px; margin: 0 0 32px;
+    }
+    .suggestions { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 560px; }
+    .suggestion {
+      display: flex; align-items: center; gap: 12px; text-align: left; border: 1px solid var(--border);
+      background: #fff; cursor: pointer; font-family: inherit; font-size: 14px; font-weight: 500;
+      color: #334155; padding: 14px 18px; border-radius: 12px; transition: all 0.15s ease;
+      box-shadow: 0 1px 2px rgba(15,23,42,0.04);
+    }
+    .suggestion:hover {
+      border-color: var(--navy); box-shadow: 0 4px 12px rgba(30,58,95,0.1); transform: translateY(-1px);
+    }
+    .suggestion-icon {
+      width: 28px; height: 28px; border-radius: 8px; background: #eef4fa; display: flex;
+      align-items: center; justify-content: center; flex-shrink: 0; color: var(--navy);
     }
 
-    .chat-header {
-      /* Use a gradient in the header */
-      background: var(--primary-color-gradient);
-      color: white;
-      text-align: center;
-      padding: 20px;
-      font-size: 1.2em;
-      font-weight: bold;
-      letter-spacing: 0.5px;
+    .messages { display: flex; flex-direction: column; gap: 24px; }
+    .msg { display: flex; flex-direction: column; }
+    .msg.animate { animation: msg-in 0.3s ease; }
+
+    .row-user { display: flex; justify-content: flex-end; }
+    .bubble-user {
+      background: var(--navy); color: var(--slate-100); font-size: 14.5px; line-height: 1.55;
+      padding: 12px 18px; border-radius: 16px 16px 4px 16px; max-width: 78%;
+      box-shadow: 0 2px 6px rgba(30,58,95,0.18); white-space: pre-wrap; word-wrap: break-word;
     }
 
-    .chat-box {
-      flex: 1;
-      overflow-y: auto;
-      padding: 20px;
-      display: flex;
-      flex-direction: column;
+    .row-assistant { display: flex; gap: 12px; }
+    .avatar {
+      width: 30px; height: 30px; border-radius: 8px; background: var(--navy); display: flex;
+      align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px;
     }
-
-    .chatInput {
-      padding: 12px 16px;
-      border-radius: 20px;
-      margin-bottom: 15px;
-      max-width: 80%;  /* allows some indentation from edges */
-      word-wrap: break-word;
-      font-size: 0.95em;
-      color: var(--text-color);
-      position: relative;
-      line-height: 1.4em;
+    .assistant-col { flex: 1; min-width: 0; }
+    .assistant-card {
+      background: #fff; border: 1px solid var(--border); border-radius: 4px 16px 16px 16px;
+      padding: 18px 22px; box-shadow: 0 1px 3px rgba(15,23,42,0.05);
     }
-
-    .user {
-      align-self: flex-end;
-      background: var(--user-chatInput-bg);
+    .assistant-body { font-size: 14.5px; line-height: 1.65; color: var(--text); }
+    .assistant-body > :first-child { margin-top: 0; }
+    .assistant-body > :last-child { margin-bottom: 0; }
+    .assistant-body p { margin: 0 0 12px; }
+    .assistant-body ul, .assistant-body ol { margin: 0 0 12px; padding-left: 20px; }
+    .assistant-body li { margin: 4px 0; }
+    .assistant-body strong { font-weight: 700; }
+    .assistant-body h1, .assistant-body h2, .assistant-body h3 {
+      font-family: 'Source Serif 4', serif; margin: 16px 0 8px; line-height: 1.3;
     }
-
-    .bot {
-      align-self: flex-start;
-      background: var(--bot-chatInput-bg);
+    .assistant-body code {
+      background: var(--slate-100); padding: 1px 5px; border-radius: 4px; font-size: 0.9em;
     }
-
-    .chatInput-timestamp {
-      font-size: 0.7em;
-      color: #666;
-      position: absolute;
-      bottom: 2px;
-      right: 10px;
+    .assistant-body pre {
+      background: var(--slate-100); padding: 12px; border-radius: 8px; overflow-x: auto;
     }
+    .assistant-body pre code { background: transparent; padding: 0; }
 
-    .user .chatInput-timestamp {
-      right: 10px; /* keep it on the right for user chatInputs */
+    .sources { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border-soft); }
+    .sources-label {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+      color: var(--faint); margin-bottom: 10px;
     }
-
-    .chat-input-container {
-      display: flex;
-      padding: 15px;
-      background: #fff;
-      border-top: 1px solid #ddd;
+    .source-list { display: flex; flex-direction: column; gap: 8px; }
+    .source {
+      display: flex; gap: 10px; align-items: flex-start; text-decoration: none; padding: 9px 12px;
+      border-radius: 8px; background: var(--slate-50); border: 1px solid var(--border-soft);
     }
-
-    .chat-input {
-      flex: 1;
-      padding: 12px 15px;
-      border: 1px solid #ddd;
-      border-radius: 25px;
-      outline: none;
-      font-size: 0.9em;
-      transition: border-color 0.3s ease;
+    .source:hover { border-color: #cbd5e1; background: var(--slate-100); }
+    .source-n {
+      width: 20px; height: 20px; border-radius: 6px; background: var(--navy); color: var(--gold);
+      font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
     }
+    .source-title { display: block; font-size: 12.5px; font-weight: 600; color: var(--text); line-height: 1.4; }
+    .source-detail { display: block; font-size: 11.5px; color: var(--muted); margin-top: 2px; }
 
-    .chat-input:focus {
-      border-color: var(--primary-color);
+    .msg-actions { display: flex; gap: 4px; margin-top: 6px; margin-left: 4px; }
+    .action-btn {
+      display: flex; align-items: center; gap: 5px; border: none; background: transparent;
+      cursor: pointer; font-family: inherit; font-size: 11.5px; font-weight: 600; color: var(--faint);
+      padding: 4px 8px; border-radius: 6px;
     }
+    .action-btn:hover { background: var(--border-soft); color: #475569; }
 
-    .send-button {
-      background: var(--primary-color);
-      color: white;
-      border: none;
-      padding: 12px 20px;
-      border-radius: 25px;
-      margin-left: 10px;
-      cursor: pointer;
-      transition: background-color 0.3s ease;
-      font-size: 0.9em;
+    .thinking { display: flex; gap: 12px; animation: msg-in 0.3s ease; }
+    .thinking-card {
+      background: #fff; border: 1px solid var(--border); border-radius: 4px 16px 16px 16px;
+      padding: 16px 20px; display: flex; align-items: center; gap: 10px;
     }
-
-    .send-button:hover {
-      background: #0056b3;
+    .dots { display: flex; gap: 4px; }
+    .dots span {
+      width: 7px; height: 7px; border-radius: 50%; background: var(--navy);
+      animation: pulse-dot 1.2s infinite ease-in-out;
     }
+    .dots span:nth-child(2) { animation-delay: 0.2s; }
+    .dots span:nth-child(3) { animation-delay: 0.4s; }
+    .thinking-text { font-size: 12.5px; color: var(--muted); }
 
-    /* Loading Indicator */
-    .loading-indicator {
-      display: none;
-      align-self: flex-start;
-      margin-bottom: 10px;
+    /* ---------- Composer ---------- */
+    .composer-wrap {
+      flex-shrink: 0; background: linear-gradient(to top, var(--page) 70%, rgba(246,248,250,0));
     }
-
-    .loading-indicator.active {
-      display: block;
+    .composer-inner { max-width: 760px; margin: 0 auto; padding: 8px 24px 18px; }
+    .composer {
+      display: flex; align-items: flex-end; gap: 10px; background: #fff; border: 1px solid var(--border);
+      border-radius: 16px; padding: 10px 10px 10px 18px; box-shadow: 0 4px 16px rgba(15,23,42,0.08);
+      transition: border-color 0.15s ease;
     }
-
-    .loading-indicator span {
-      display: inline-block;
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background-color: var(--primary-color);
-      margin: 0 3px;
-      animation: bounce 0.6s infinite alternate;
+    .composer.focused { border-color: var(--navy); }
+    .composer textarea {
+      flex: 1; border: none; resize: none; font-family: inherit; font-size: 14.5px; line-height: 1.5;
+      color: var(--text); background: transparent; padding: 8px 0; max-height: 140px; outline: none;
     }
-
-    .loading-indicator span:nth-child(2) {
-      animation-delay: 0.2s;
+    .composer textarea::placeholder { color: var(--faint); }
+    .send-btn {
+      display: flex; align-items: center; justify-content: center; width: 40px; height: 40px;
+      border: none; border-radius: 12px; cursor: pointer; background: var(--navy);
+      transition: background 0.15s ease; flex-shrink: 0;
     }
+    .send-btn:disabled { background: #cbd5e1; cursor: default; }
+    .composer-footer { text-align: center; font-size: 11.5px; color: var(--faint); margin-top: 10px; }
 
-    .loading-indicator span:nth-child(3) {
-      animation-delay: 0.4s;
-    }
-
-    @keyframes bounce {
-      to {
-        transform: translateY(-5px);
-      }
-    }
-
-    .chatInput-content {
-      padding-right: 10px;
-      display: inline-block;
-    }
-
-    @media (max-width: 768px) {
-      .chat-container {
-        border-radius: 0;
-        width: 100%;
-        height: 100vh;
-        max-height: none;
-      }
+    @media (max-width: 640px) {
+      .app-header { padding: 10px 14px; }
+      .brand-subtitle, .article-link span { display: none; }
+      .scroll-inner, .composer-inner { padding-left: 14px; padding-right: 14px; }
     }
   </style>
 </head>
 <body>
 
-<main class="chat-container" role="main">
-  <header class="chat-header" role="banner">
-    Ukrainian NGO Legislation Adviser
+<div class="app">
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <a class="back-link" href="https://baena.ai/demos">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"></path></svg>
+        <span data-i18n="back">Back</span>
+      </a>
+      <div class="divider-v"></div>
+      <div class="brand">
+        <div class="brand-badge">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"></path><path d="M5 7l7-4 7 4"></path><path d="M5 7l-2 6a3.5 3.5 0 0 0 7 0L8 7"></path><path d="M16 7l-2 6a3.5 3.5 0 0 0 7 0l-2-6"></path><path d="M8 21h8"></path></svg>
+        </div>
+        <div style="min-width:0;">
+          <div class="brand-title" data-i18n="title">Paralegal Advisor</div>
+          <div class="brand-subtitle" data-i18n="subtitle">Humanitarian NGOs in Ukraine · Live Chat</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="lang-toggle">
+        <button type="button" class="lang-btn" data-lang="en">EN</button>
+        <button type="button" class="lang-btn" data-lang="uk">UK</button>
+      </div>
+
+      <div class="dl-wrap" id="dlWrap" hidden>
+        <button type="button" class="dl-button" id="dlButton">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="M7 10l5 5 5-5"></path><path d="M12 15V3"></path></svg>
+          <span data-i18n="download">Download</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+        </button>
+        <div class="dl-menu" id="dlMenu" hidden>
+          <button type="button" class="dl-item" id="dlMd">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><path d="M14 2v6h6"></path></svg>
+            <span><span data-i18n="dl_md">Markdown (.md)</span><small data-i18n="dl_md_sub">Plain text transcript</small></span>
+          </button>
+          <button type="button" class="dl-item" id="dlPdf">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><path d="M6 14h12v8H6z"></path></svg>
+            <span><span data-i18n="dl_pdf">PDF (print)</span><small data-i18n="dl_pdf_sub">Print-friendly transcript</small></span>
+          </button>
+        </div>
+      </div>
+
+      <a class="article-link" href="https://baena.ai/articles/paralegal-advisor">
+        <span data-i18n="article">Article</span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><path d="M15 3h6v6"></path><path d="M10 14L21 3"></path></svg>
+      </a>
+    </div>
   </header>
 
-  <section id="chatBox" class="chat-box" aria-live="polite" aria-atomic="true"></section>
-
-  <div class="loading-indicator" id="loadingIndicator">
-    <span></span>
-    <span></span>
-    <span></span>
+  <!-- Disclaimer -->
+  <div class="disclaimer" id="disclaimer">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a16207" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+    <div class="disclaimer-text" data-i18n="disclaimer"></div>
+    <button type="button" class="disclaimer-close" id="disclaimerClose" aria-label="Dismiss">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6L6 18"></path><path d="M6 6l12 12"></path></svg>
+    </button>
   </div>
 
-  <footer class="chat-input-container" role="contentinfo">
-    <input
-      type="text"
-      id="userInput"
-      class="chat-input"
-      placeholder="Type your question..."
-      aria-label="Type your chatInput"
-      autocomplete="off"
-    />
-    <button id="sendButton" class="send-button" aria-label="Send chatInput">
-      Send
-    </button>
-  </footer>
-</main>
+  <!-- Conversation -->
+  <div class="scroll" id="scroll">
+    <div class="scroll-inner">
+      <div id="conversation"></div>
+    </div>
+  </div>
+
+  <!-- Composer -->
+  <div class="composer-wrap">
+    <div class="composer-inner">
+      <div class="composer" id="composer">
+        <textarea id="userInput" rows="1" aria-label="Ask a legal question"></textarea>
+        <button type="button" class="send-btn" id="sendButton" disabled aria-label="Send">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"></path><path d="M5 12l7-7 7 7"></path></svg>
+        </button>
+      </div>
+      <div class="composer-footer" data-i18n="footer"></div>
+    </div>
+  </div>
+</div>
 
 <script>
-  // 1) Retrieve or create sessionId in localStorage
-  let sessionId = localStorage.getItem("sessionId");
-  if (!sessionId) {
-    if (window.crypto && crypto.randomUUID) {
-      // Use secure random UUID if available
-      sessionId = crypto.randomUUID();
-    } else {
-      // Fallback: random string + timestamp
-      sessionId = Math.random().toString(36).substring(2) + Date.now().toString(36);
-    }
-    localStorage.setItem("sessionId", sessionId);
-  }
-  console.log("sessionId:", sessionId);
+(function () {
+  "use strict";
 
-  // Flowise chatflow prediction endpoint (RAG backend).
+  // ---------- i18n ----------
+  const T = {
+    en: {
+      back: "Back", title: "Paralegal Advisor", subtitle: "Humanitarian NGOs in Ukraine · Live Chat",
+      download: "Download", article: "Article",
+      dl_md: "Markdown (.md)", dl_md_sub: "Plain text transcript", dl_pdf: "PDF (print)", dl_pdf_sub: "Print-friendly transcript",
+      disclaimer: "This assistant provides general legal information based on Ukrainian legislation, not legal advice. Consult a qualified lawyer before acting on any answer.",
+      empty_title: "Ask about Ukrainian humanitarian law",
+      empty_desc: "Answers are grounded in Verkhovna Rada legislation and a curated humanitarian knowledge base, with sources cited for every claim.",
+      sources: "Sources", thinking: "Searching legislation…", placeholder: "Ask a legal question…",
+      footer: "Grounded in Verkhovna Rada law · Not a substitute for professional legal advice",
+      copy: "Copy", copied: "Copied ✓", noAnswer: "No answer received from the server.",
+      error: "Something went wrong while contacting the legal assistant. Please try again.",
+      suggestions: [
+        "What are the rights of internally displaced persons under martial law?",
+        "How do humanitarian NGOs register to operate in Ukraine?",
+        "What compensation exists for housing destroyed during the war?",
+      ],
+    },
+    uk: {
+      back: "Назад", title: "Параюридичний радник", subtitle: "Гуманітарні НУО в Україні · Живий чат",
+      download: "Завантажити", article: "Стаття",
+      dl_md: "Markdown (.md)", dl_md_sub: "Текстова стенограма", dl_pdf: "PDF (друк)", dl_pdf_sub: "Стенограма для друку",
+      disclaimer: "Цей помічник надає загальну юридичну інформацію на основі законодавства України, а не юридичну консультацію. Перед дією зверніться до кваліфікованого юриста.",
+      empty_title: "Запитайте про гуманітарне право України",
+      empty_desc: "Відповіді ґрунтуються на законодавстві Верховної Ради та кураторській базі гуманітарних знань, з посиланнями на джерела.",
+      sources: "Джерела", thinking: "Пошук у законодавстві…", placeholder: "Поставте юридичне запитання…",
+      footer: "На основі законів Верховної Ради · Не замінює професійну юридичну консультацію",
+      copy: "Копіювати", copied: "Скопійовано ✓", noAnswer: "Сервер не повернув відповіді.",
+      error: "Під час звернення до юридичного помічника сталася помилка. Спробуйте ще раз.",
+      suggestions: [
+        "Які права мають внутрішньо переміщені особи в умовах воєнного стану?",
+        "Як гуманітарні НУО реєструються для роботи в Україні?",
+        "Яка компенсація передбачена за житло, зруйноване під час війни?",
+      ],
+    },
+  };
+
+  // ---------- Backend wiring (Flowise RAG) ----------
   // Override at deploy time via `window.FLOWISE_PREDICTION_URL` if needed.
   const FLOWISE_PREDICTION_URL =
     window.FLOWISE_PREDICTION_URL ||
     "https://flowise.baena.info/api/v1/prediction/REPLACE_WITH_CHATFLOW_ID";
 
-  // 2) Setup chat logic
-  const chatBox = document.getElementById("chatBox");
-  const loadingIndicator = document.getElementById("loadingIndicator");
-  const userInput = document.getElementById("userInput");
-  const sendButton = document.getElementById("sendButton");
-
-  sendButton.addEventListener("click", sendchatInput);
-  userInput.addEventListener("keypress", (event) => {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      sendchatInput();
-    }
-  });
-
-  /**
-   * Safely escape any user-provided text to prevent HTML injection.
-   */
-  function escapeHtml(unsafe) {
-    return unsafe
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+  // Persistent session id so Flowise can maintain conversation memory.
+  let sessionId = localStorage.getItem("sessionId");
+  if (!sessionId) {
+    sessionId = (window.crypto && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2) + Date.now().toString(36);
+    localStorage.setItem("sessionId", sessionId);
   }
 
-  /**
-   * Renders a chatInput in the chat UI.
-   * @param {string} sender - 'user' or 'bot'
-   * @param {string} chatInput - Text to display
-   */
-  function addchatInput(sender, chatInput) {
-    const chatInputDiv = document.createElement("div");
-    chatInputDiv.classList.add("chatInput", sender);
+  // ---------- State ----------
+  const state = {
+    lang: localStorage.getItem("lang") === "uk" ? "uk" : "en",
+    messages: [],           // { id, role:'user'|'assistant', text?, rawBody?, html?, sources? }
+    thinking: false,
+    disclaimerDismissed: false,
+    downloadOpen: false,
+    copiedId: null,
+    animateId: null,        // only this message plays the entry animation
+    msgSeq: 0,
+  };
 
-    const senderName = sender === "user" ? "You" : "Bot";
-    const now = new Date();
-    const timestamp = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const t = () => T[state.lang];
 
-    // Escape user-provided text, parse bot text for Markdown
-    let processedchatInput = sender === "bot"
-      ? marked.parseInline(chatInput)
-      : escapeHtml(chatInput);
-
-    chatInputDiv.innerHTML = `
-      <b>${senderName}:</b>
-      <span class="chatInput-content">${processedchatInput}</span>
-      <span class="chatInput-timestamp">${timestamp}</span>
-    `;
-
-    chatBox.appendChild(chatInputDiv);
-    chatBox.scrollTop = chatBox.scrollHeight;
+  // ---------- Helpers ----------
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#039;");
   }
 
-  /**
-   * Renders a "Sources" bubble listing the cited laws returned by Flowise.
-   * @param {Array} sourceDocuments - Flowise sourceDocuments [{ pageContent, metadata }]
-   */
-  function renderSources(sourceDocuments) {
-    if (!Array.isArray(sourceDocuments) || sourceDocuments.length === 0) return;
+  // Only allow http/https links to reach the DOM; everything else is dropped.
+  function safeUrl(u) {
+    if (!u) return "";
+    try {
+      const parsed = new URL(u, window.location.href);
+      return (parsed.protocol === "http:" || parsed.protocol === "https:") ? parsed.href : "";
+    } catch (e) { return ""; }
+  }
 
+  // Bot answers are LLM-generated over scraped legal text, so parse Markdown but
+  // always sanitize the resulting HTML before it reaches innerHTML.
+  function renderMarkdown(md) {
+    const html = window.marked ? marked.parse(String(md || "")) : escapeHtml(md || "");
+    return window.DOMPurify ? DOMPurify.sanitize(html) : html;
+  }
+
+  // Map Flowise sourceDocuments -> numbered, de-duplicated citation cards.
+  function mapSources(sourceDocuments) {
+    if (!Array.isArray(sourceDocuments)) return [];
     const seen = new Set();
-    const items = [];
+    const out = [];
     for (const doc of sourceDocuments) {
       const meta = (doc && doc.metadata) || {};
+      // Secondary reports are expert commentary, not statute — flag them so
+      // users never mistake an analysis for the law itself (see main's
+      // secondary_reports collection).
       const isReport = meta.source_type === "secondary_report";
-      const title = meta.report_title || meta.title || meta.law_id || "Source";
-      const url = meta.url || "";
+      const title = meta.report_title || meta.title || meta.law_id || meta.source || "Source";
+      const url = safeUrl(meta.url || "");
       const key = url || title;
       if (seen.has(key)) continue;
       seen.add(key);
-      // Distinguish expert commentary from primary law so users never mistake
-      // an analysis for the statute itself.
-      const label = isReport ? "<em>Analysis:</em> " : "";
-      const safeTitle = label + escapeHtml(String(title));
-      items.push(
-        url
-          ? `<li>${label}<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(String(title))}</a></li>`
-          : `<li>${safeTitle}</li>`
-      );
+      const detailParts = [];
+      if (isReport) detailParts.push("Analysis");
+      if (meta.law_id && meta.title) detailParts.push(String(meta.law_id));
+      const date = meta.date || meta.pub_date;
+      if (date) detailParts.push(String(date));
+      if (meta.collection) detailParts.push(String(meta.collection));
+      out.push({ n: out.length + 1, title: String(title), detail: detailParts.join(" · "), url });
     }
-    if (items.length === 0) return;
-
-    const div = document.createElement("div");
-    div.classList.add("chatInput", "bot");
-    div.innerHTML = `<b>Sources:</b><ul style="margin:6px 0 0 18px;padding:0;">${items.join("")}</ul>`;
-    chatBox.appendChild(div);
-    chatBox.scrollTop = chatBox.scrollHeight;
+    return out;
   }
 
-  /**
-   * Sends the user's question and sessionId to the Flowise RAG endpoint.
-   */
-  async function sendchatInput() {
-    const chatInput = userInput.value.trim();
-    if (!chatInput) return;
+  // ---------- DOM refs ----------
+  const el = {
+    conversation: document.getElementById("conversation"),
+    scroll: document.getElementById("scroll"),
+    disclaimer: document.getElementById("disclaimer"),
+    disclaimerClose: document.getElementById("disclaimerClose"),
+    dlWrap: document.getElementById("dlWrap"),
+    dlButton: document.getElementById("dlButton"),
+    dlMenu: document.getElementById("dlMenu"),
+    dlMd: document.getElementById("dlMd"),
+    dlPdf: document.getElementById("dlPdf"),
+    composer: document.getElementById("composer"),
+    userInput: document.getElementById("userInput"),
+    sendButton: document.getElementById("sendButton"),
+  };
 
-    // Show user chatInput in chat
-    addchatInput("user", chatInput);
-    userInput.value = "";
-    userInput.focus();
+  function scrollToBottom() {
+    requestAnimationFrame(() => { el.scroll.scrollTop = el.scroll.scrollHeight; });
+  }
 
-    // Show loading indicator
-    loadingIndicator.classList.add("active");
+  // ---------- Static labels ----------
+  function applyStaticLabels() {
+    const tr = t();
+    document.querySelectorAll("[data-i18n]").forEach((node) => {
+      const key = node.getAttribute("data-i18n");
+      if (tr[key] != null) node.textContent = tr[key];
+    });
+    document.documentElement.lang = state.lang;
+    el.userInput.placeholder = tr.placeholder;
+    document.querySelectorAll(".lang-btn").forEach((b) => {
+      b.classList.toggle("active", b.getAttribute("data-lang") === state.lang);
+    });
+  }
+
+  // ---------- Conversation rendering ----------
+  const AVATAR = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#e8d5a3" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"></path><path d="M5 7l7-4 7 4"></path><path d="M5 7l-2 6a3.5 3.5 0 0 0 7 0L8 7"></path><path d="M16 7l-2 6a3.5 3.5 0 0 0 7 0l-2-6"></path><path d="M8 21h8"></path></svg>';
+
+  function emptyStateHtml() {
+    const tr = t();
+    const items = tr.suggestions.map((text, i) => `
+      <button class="suggestion" data-suggest="${i}">
+        <span class="suggestion-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+        </span>
+        <span>${escapeHtml(text)}</span>
+      </button>`).join("");
+    return `
+      <div class="empty">
+        <div class="empty-badge">
+          <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#e8d5a3" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"></path><path d="M5 7l7-4 7 4"></path><path d="M5 7l-2 6a3.5 3.5 0 0 0 7 0L8 7"></path><path d="M16 7l-2 6a3.5 3.5 0 0 0 7 0l-2-6"></path><path d="M8 21h8"></path></svg>
+        </div>
+        <h1 class="empty-title">${escapeHtml(tr.empty_title)}</h1>
+        <p class="empty-desc">${escapeHtml(tr.empty_desc)}</p>
+        <div class="suggestions">${items}</div>
+      </div>`;
+  }
+
+  function sourcesHtml(sources) {
+    if (!sources || !sources.length) return "";
+    const tr = t();
+    const cards = sources.map((s) => {
+      const inner = `
+        <span class="source-n">${escapeHtml(String(s.n))}</span>
+        <span style="min-width:0;">
+          <span class="source-title">${escapeHtml(s.title)}</span>
+          ${s.detail ? `<span class="source-detail">${escapeHtml(s.detail)}</span>` : ""}
+        </span>`;
+      return s.url
+        ? `<a class="source" href="${escapeHtml(s.url)}" target="_blank" rel="noopener noreferrer">${inner}</a>`
+        : `<div class="source">${inner}</div>`;
+    }).join("");
+    return `
+      <div class="sources">
+        <div class="sources-label">${escapeHtml(tr.sources)}</div>
+        <div class="source-list">${cards}</div>
+      </div>`;
+  }
+
+  function messageHtml(m) {
+    const tr = t();
+    const animate = m.id === state.animateId ? " animate" : "";
+    if (m.role === "user") {
+      return `<div class="msg${animate}"><div class="row-user"><div class="bubble-user">${escapeHtml(m.text)}</div></div></div>`;
+    }
+    const copyLabel = state.copiedId === m.id ? tr.copied : tr.copy;
+    return `
+      <div class="msg${animate}">
+        <div class="row-assistant">
+          <div class="avatar">${AVATAR}</div>
+          <div class="assistant-col">
+            <div class="assistant-card">
+              <div class="assistant-body">${m.html}</div>
+              ${sourcesHtml(m.sources)}
+            </div>
+            <div class="msg-actions">
+              <button class="action-btn" data-copy="${escapeHtml(String(m.id))}" title="${escapeHtml(tr.copy)}">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <span>${escapeHtml(copyLabel)}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function thinkingHtml() {
+    const tr = t();
+    return `
+      <div class="thinking">
+        <div class="avatar">${AVATAR}</div>
+        <div class="thinking-card">
+          <div class="dots"><span></span><span></span><span></span></div>
+          <span class="thinking-text">${escapeHtml(tr.thinking)}</span>
+        </div>
+      </div>`;
+  }
+
+  function renderConversation() {
+    if (state.messages.length === 0 && !state.thinking) {
+      el.conversation.innerHTML = emptyStateHtml();
+      return;
+    }
+    const msgs = state.messages.map(messageHtml).join("");
+    el.conversation.innerHTML = `<div class="messages">${msgs}${state.thinking ? thinkingHtml() : ""}</div>`;
+  }
+
+  function updateHeader() {
+    el.dlWrap.hidden = state.messages.length === 0;
+    el.dlMenu.hidden = !state.downloadOpen;
+  }
+
+  function updateSendState() {
+    const canSend = el.userInput.value.trim().length > 0 && !state.thinking;
+    el.sendButton.disabled = !canSend;
+  }
+
+  function autoGrow() {
+    el.userInput.style.height = "auto";
+    el.userInput.style.height = Math.min(el.userInput.scrollHeight, 140) + "px";
+  }
+
+  // ---------- Conversation flow ----------
+  async function ask(text) {
+    const question = (text || "").trim();
+    if (!question || state.thinking) return;
+
+    const userMsg = { id: ++state.msgSeq, role: "user", text: question };
+    state.messages.push(userMsg);
+    state.thinking = true;
+    state.animateId = userMsg.id;
+    el.userInput.value = "";
+    autoGrow();
+    updateSendState();
+    updateHeader();
+    renderConversation();
+    scrollToBottom();
 
     try {
-      // Flowise prediction payload: { question, overrideConfig: { sessionId } }
-      const requestBody = {
-        question: chatInput,
-        overrideConfig: { sessionId: sessionId },
-      };
-
       const response = await fetch(FLOWISE_PREDICTION_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({ question, overrideConfig: { sessionId } }),
       });
+      if (!response.ok) throw new Error("HTTP " + response.status);
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      // Flowise returns { text, sourceDocuments, ... }
       const data = await response.json();
-      console.log("Response from Flowise:", data);
-
-      const answer = data && (data.text || data.answer);
-      addchatInput("bot", answer || "No answer received from server.");
-      if (data) renderSources(data.sourceDocuments);
-    } catch (error) {
-      console.error("Error during fetch:", error);
-      addchatInput("bot", `Error: ${error.message}`);
+      const answer = (data && (data.text || data.answer)) || t().noAnswer;
+      const aMsg = {
+        id: ++state.msgSeq, role: "assistant",
+        rawBody: String(answer),
+        html: renderMarkdown(answer),
+        sources: mapSources(data && data.sourceDocuments),
+      };
+      state.messages.push(aMsg);
+      state.animateId = aMsg.id;
+    } catch (err) {
+      const aMsg = {
+        id: ++state.msgSeq, role: "assistant",
+        rawBody: t().error,
+        html: renderMarkdown(t().error),
+        sources: [],
+      };
+      state.messages.push(aMsg);
+      state.animateId = aMsg.id;
+      if (window.console) console.error("Flowise request failed:", err);
     } finally {
-      loadingIndicator.classList.remove("active");
+      state.thinking = false;
+      updateSendState();
+      updateHeader();
+      renderConversation();
+      scrollToBottom();
     }
   }
+
+  function copyMessage(id) {
+    const m = state.messages.find((x) => String(x.id) === String(id));
+    if (!m) return;
+    let text = m.rawBody || "";
+    if (m.sources && m.sources.length) {
+      text += "\n\n" + m.sources.map((s) => "[" + s.n + "] " + s.title + (s.url ? " — " + s.url : "")).join("\n");
+    }
+    try { navigator.clipboard.writeText(text); } catch (e) { /* clipboard unavailable */ }
+    state.copiedId = m.id;
+    renderConversation();
+    clearTimeout(copyMessage._timer);
+    copyMessage._timer = setTimeout(() => {
+      state.copiedId = null;
+      renderConversation();
+    }, 1600);
+  }
+
+  // ---------- Downloads ----------
+  function buildMarkdown() {
+    const tr = t();
+    const lines = ["# " + tr.title + " — transcript", "", new Date().toLocaleString(), ""];
+    state.messages.forEach((m) => {
+      if (m.role === "user") {
+        lines.push("**Q:** " + m.text, "");
+      } else {
+        lines.push("**A:** " + (m.rawBody || ""), "");
+        if (m.sources && m.sources.length) {
+          lines.push("_" + tr.sources + ":_");
+          m.sources.forEach((s) => lines.push("- [" + s.title + "](" + (s.url || "") + ")" + (s.detail ? " — " + s.detail : "")));
+          lines.push("");
+        }
+      }
+    });
+    lines.push("---", tr.disclaimer);
+    return lines.join("\n");
+  }
+
+  function downloadMarkdown() {
+    const blob = new Blob([buildMarkdown()], { type: "text/markdown" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "paralegal-advisor-transcript.md";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    state.downloadOpen = false;
+    updateHeader();
+  }
+
+  function downloadPdf() {
+    const tr = t();
+    const esc = (s) => escapeHtml(s);
+    let html = '<!DOCTYPE html><html><head><meta charset="utf-8"><title>' + esc(tr.title) +
+      ' — transcript</title><style>body{font-family:Georgia,serif;max-width:680px;margin:40px auto;color:#1e293b;line-height:1.6;font-size:13pt}h1{font-size:19pt;border-bottom:2px solid #1e3a5f;padding-bottom:8px}.q{font-weight:bold;color:#1e3a5f;margin-top:28px}.src{font-size:10pt;color:#555;margin:4px 0 0 16px}.disc{margin-top:36px;padding-top:12px;border-top:1px solid #ccc;font-size:10pt;color:#777}@media print{body{margin:0.5in auto}}</style></head><body>';
+    html += "<h1>" + esc(tr.title) + ' — transcript</h1><p style="color:#777;font-size:10pt">' + esc(new Date().toLocaleString()) + "</p>";
+    state.messages.forEach((m) => {
+      if (m.role === "user") {
+        html += '<p class="q">Q: ' + esc(m.text) + "</p>";
+      } else {
+        html += "<p>" + esc(m.rawBody || "") + "</p>";
+        if (m.sources && m.sources.length) {
+          html += '<p style="font-size:10pt;color:#555;margin-bottom:2px"><em>' + esc(tr.sources) + ":</em></p>";
+          m.sources.forEach((s) => {
+            html += '<p class="src">[' + s.n + "] " + esc(s.title) + (s.detail ? " — " + esc(s.detail) : "") + (s.url ? "<br>" + esc(s.url) : "") + "</p>";
+          });
+        }
+      }
+    });
+    html += '<p class="disc">' + esc(tr.disclaimer) + "</p></body></html>";
+    const w = window.open("", "_blank");
+    if (w) { w.document.write(html); w.document.close(); setTimeout(() => w.print(), 300); }
+    state.downloadOpen = false;
+    updateHeader();
+  }
+
+  // ---------- Events ----------
+  document.querySelectorAll(".lang-btn").forEach((b) => {
+    b.addEventListener("click", () => {
+      const lang = b.getAttribute("data-lang");
+      if (lang === state.lang) return;
+      state.lang = lang;
+      localStorage.setItem("lang", lang);
+      state.animateId = null;
+      applyStaticLabels();
+      renderConversation();
+    });
+  });
+
+  el.disclaimerClose.addEventListener("click", () => {
+    state.disclaimerDismissed = true;
+    el.disclaimer.hidden = true;
+  });
+
+  el.dlButton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    state.downloadOpen = !state.downloadOpen;
+    updateHeader();
+  });
+  el.dlMd.addEventListener("click", downloadMarkdown);
+  el.dlPdf.addEventListener("click", downloadPdf);
+  document.addEventListener("click", (e) => {
+    if (state.downloadOpen && !e.target.closest("#dlWrap")) {
+      state.downloadOpen = false;
+      updateHeader();
+    }
+  });
+
+  // Delegated clicks inside the conversation (suggestions + copy).
+  el.conversation.addEventListener("click", (e) => {
+    const sug = e.target.closest("[data-suggest]");
+    if (sug) { ask(t().suggestions[Number(sug.getAttribute("data-suggest"))]); return; }
+    const copyBtn = e.target.closest("[data-copy]");
+    if (copyBtn) { copyMessage(copyBtn.getAttribute("data-copy")); return; }
+  });
+
+  el.userInput.addEventListener("input", () => { autoGrow(); updateSendState(); });
+  el.userInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(el.userInput.value); }
+  });
+  el.userInput.addEventListener("focus", () => el.composer.classList.add("focused"));
+  el.userInput.addEventListener("blur", () => el.composer.classList.remove("focused"));
+  el.sendButton.addEventListener("click", () => ask(el.userInput.value));
+
+  // ---------- Init ----------
+  applyStaticLabels();
+  renderConversation();
+  updateHeader();
+  updateSendState();
+})();
 </script>
 
 </body>

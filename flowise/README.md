@@ -2,30 +2,36 @@
 
 > **Status / source of truth.** A **live** chatflow already serves this demo:
 > id `6b3a8804-5200-428f-afd0-abedc9c1f49c` on **`flowise.baena.site`**, wired
-> into the portfolio site's `demos/paralegal-advisor` page. It currently uses
+> into the portfolio site's `demos/paralegal-advisor` page. It uses the
 > `rada_legislation` + `curated_legislation` retrievers + Gemini. The live graph
 > is the source of truth — **export it from the Flowise UI and commit it here.**
 > The `flowise.baena.site` DB is *not* the same as `flowise.baena.info` (whose
 > DB backs the other flows), so the export is the only reliable reference.
->
-> `ukr-law-chatflow.json` here is a **proposed reference build** for the
-> three-collection upgrade (adding the `secondary_reports` retriever), authored
-> against the `flowise.baena.info` node versions — **treat it as a template,
-> not the live flow**, and reconcile it against the real export before importing.
+
+This directory holds **two** graphs:
+
+- **`ukr-law-chatflow.json`** — the **live export** of the deployed flow
+  (id `6b3a8804…`): a faithful snapshot of what actually serves the demo today
+  (2 retrievers, `rada_legislation` + `curated_legislation`, + Gemini). Treat it
+  as the record of the running system; re-export and re-commit it whenever the
+  live graph changes.
+- **`ukr-law-agentflow-v2.json`** — a **proposed importable Agentflow v2**
+  reference build for the three-collection upgrade (adds the `secondary_reports`
+  retriever): Start → 3 retrievers → Agent, matching node versions
+  `startAgentflow` 1.1, `retrieverAgentflow` 1.1, `agentAgentflow` 3.2. It is
+  **not turnkey** and **not the live flow** — after import you bind 3 Document
+  Stores and 1 credential in the UI (see below), UI/credential-encrypted entities
+  that can't live in an exported graph. Reconcile it against the live export
+  before importing.
 
 The frontend POSTs `question` to `/api/v1/prediction/{id}` and renders `text` +
 `sourceDocuments`. The real UI is the portfolio's `paralegal-advisor.vue` (this
-repo's `../index.html` is a standalone demo of the same contract).
-
-`ukr-law-chatflow.json` is an importable Agentflow (Start → 3 retrievers →
-Agent) matching node versions `startAgentflow` 1.1, `retrieverAgentflow` 1.1,
-`agentAgentflow` 3.2. It is **not turnkey**: after import you bind 3 Document
-Stores and 1 credential in the UI (see below) — UI/credential-encrypted entities
-that can't live in an exported graph. Flows are **lost on schema drop**
-(`2025-swarm-infrastructure-deployment/FLOWISE_RUNBOOK.md`), so keep the export
+repo's `../index.html` is a standalone demo of the same contract). Flows are
+**lost on schema drop**
+(`2025-swarm-infrastructure-deployment/FLOWISE_RUNBOOK.md`), so keep both graphs
 in git.
 
-## Architecture (this Flowise build)
+## Architecture (the Agentflow v2 upgrade)
 
 This build's retrievers (`retrieverAgentflow`) read from **Flowise Document
 Stores**, not raw Qdrant collections. So each pipeline collection is wrapped in
@@ -58,9 +64,9 @@ For each of `rada_legislation`, `curated_legislation`, `secondary_reports`:
 4. Save, then copy the Document Store's **id** from its URL
    (`/document-stores/<id>`).
 
-## Import & bind the Agentflow
+## Import & bind the Agentflow v2
 
-1. **Agentflows → Add New → Import**, choose `ukr-law-chatflow.json`.
+1. **Agentflows → Add New → Import**, choose `ukr-law-agentflow-v2.json`.
 2. Open each **Retriever** node and select the matching Document Store (or paste
    its id, replacing the `<REPLACE_WITH_*_DOCSTORE_ID>` placeholder). Top-K:
    Primary ≈ 4, Curated ≈ 3, Secondary_Analysis ≈ 2 (commentary — keep small so
