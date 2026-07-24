@@ -15,7 +15,13 @@ from config import (
     CATALOGUE_PATH, DATABASE_URL, LAWS_DIR, LAW_BASE_URL,
     REQUEST_DELAY, BATCH_SIZE, FORCE_RESCRAPE
 )
-from law_processing import extract_law, fetch_with_retry, safe_filename
+from law_processing import (
+    extract_law,
+    fetch_with_retry,
+    safe_filename,
+    summarize_quality,
+    warn_if_docling_disabled,
+)
 from staging_db import (
     ensure_staging_schema,
     get_postgres_connection,
@@ -26,6 +32,8 @@ from staging_db import (
 
 def main():
     print("=== Step 2: Scraping law texts from zakon.rada.gov.ua ===\n")
+
+    warn_if_docling_disabled()
 
     if not CATALOGUE_PATH.exists():
         print("✗ catalogue.json not found. Run 1_fetch_catalogue.py first.")
@@ -72,6 +80,7 @@ def main():
     stage_failed = 0
     raw_staged = 0
     raw_stage_failed = 0
+    assessments = []
 
     for i, entry in enumerate(tqdm(todo, desc="Scraping")):
         law_id = entry["id"]
@@ -128,6 +137,7 @@ def main():
                 # Enrich with catalogue metadata
                 result["category"] = entry.get("category", "")
                 result["catalogue_date"] = entry.get("date", "")
+                assessments.append(result.get("quality", {}))
                 out_path.write_text(
                     json.dumps(result, ensure_ascii=False, indent=2),
                     encoding="utf-8"
@@ -158,6 +168,9 @@ def main():
         print(f"  Raw err:    {raw_stage_failed}")
     print(f"  Total:    {success + failed + empty}")
     print(f"\nLaw files in: {LAWS_DIR}")
+
+    print("\n=== Extraction quality ===")
+    print(summarize_quality(assessments))
 
     if pg_conn is not None:
         pg_conn.close()

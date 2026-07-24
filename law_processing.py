@@ -1,3 +1,4 @@
+import os
 import re
 import time
 
@@ -348,27 +349,159 @@ _DOCLING_MIN_TOTAL_CHARS = 500  # fall back if Docling returns less than this
 
 
 def extract_law(html: str, law_id: str, url: str) -> dict | None:
-    """Extract a law using Docling first, with a bounded HTML fallback."""
+    """Extract a law using Docling first, with a bounded HTML fallback.
+
+    The returned law dict carries an ``extraction_mode`` and a ``quality``
+    assessment (see :func:`assess_law_quality`) so downstream steps and the
+    corpus report can gate on structurally-collapsed extractions.
+    """
+    result = None
+
     if DOCLING_API_URL:
         try:
-            result = extract_law_via_docling(html, law_id, url)
-            if result:
-                total_chars = sum(len(s.get("text", "")) for s in result.get("sections", []))
+            docling_result = extract_law_via_docling(html, law_id, url)
+            if docling_result:
+                total_chars = sum(len(s.get("text", "")) for s in docling_result.get("sections", []))
                 if total_chars >= _DOCLING_MIN_TOTAL_CHARS:
-                    result["extraction_mode"] = "docling"
-                    return result
-                print(f"\n  Docling returned too little content for {law_id} ({total_chars} chars), using HTML fallback")
+                    docling_result["extraction_mode"] = "docling"
+                    result = docling_result
+                else:
+                    print(f"\n  Docling returned too little content for {law_id} ({total_chars} chars), using HTML fallback")
         except requests.RequestException as exc:
             print(f"\n  Docling request failed for {law_id}: {exc}")
         except ValueError as exc:
             print(f"\n  Docling returned invalid JSON for {law_id}: {exc}")
 
-    result = extract_law_from_html(html, law_id, url)
-    if result and DOCLING_API_URL:
-        result["extraction_mode"] = "html_fallback"
-    elif result:
-        result["extraction_mode"] = "html_only"
+    if result is None:
+        result = extract_law_from_html(html, law_id, url)
+        if result and DOCLING_API_URL:
+            result["extraction_mode"] = "html_fallback"
+        elif result:
+            result["extraction_mode"] = "html_only"
+
+    if result is not None:
+        result["quality"] = assess_law_quality(result)
+
     return result
+
+
+# --- Extraction quality gate -------------------------------------------------
+# A collapsed/failed extraction typically yields a document that carries a
+# substantial amount of body text but was never segmented into articles or
+# sections (see review finding #1: ~96% of the indexed corpus landed with 1–3
+# sections). These thresholds flag that pattern without penalising genuinely
+# short decrees, which legitimately have 1–2 short sections.
+LOW_QUALITY_MIN_CHARS = int(os.getenv("LOW_QUALITY_MIN_CHARS", "2000"))
+LOW_QUALITY_MAX_SECTIONS = int(os.getenv("LOW_QUALITY_MAX_SECTIONS", "2"))
+THIN_MAX_CHARS = int(os.getenv("THIN_MAX_CHARS", "200"))
+
+_docling_warning_emitted = False
+
+
+def warn_if_docling_disabled() -> None:
+    """Emit a loud, one-time warning when Docling extraction is unavailable.
+
+    Without Docling the pipeline falls back to the bounded HTML parser, which is
+    the primary cause of structurally-collapsed extractions.
+    """
+    global _docling_warning_emitted
+    if DOCLING_API_URL or _docling_warning_emitted:
+        return
+    _docling_warning_emitted = True
+    banner = "!" * 72
+    print(
+        "\n" + banner
+        + "\nWARNING: DOCLING_API_URL is not set — using the bounded HTML fallback"
+        + "\nparser. Extraction quality will be degraded and many laws may collapse"
+        + "\nto 1–2 sections. Set DOCLING_API_URL for structured article segmentation."
+        + "\n" + banner + "\n",
+        flush=True,
+    )
+
+
+def count_article_headings(sections: list[dict]) -> int:
+    """Count sections whose heading looks like a real article/chapter marker."""
+    count = 0
+    for section in sections:
+        heading = (section.get("heading") or "").strip()
+        if heading and _ARTICLE_HEADING_RE.match(heading):
+            count += 1
+    return count
+
+
+def assess_law_quality(law: dict) -> dict:
+    """Assess whether an extracted law looks structurally complete.
+
+    Returns the raw signals plus a ``quality`` label:
+      - ``"suspect"``: substantial body text but almost no structure — the
+        signature of a collapsed/failed extraction.
+      - ``"thin"``: barely any content at all.
+      - ``"ok"``: otherwise.
+    """
+    sections = law.get("sections", []) or []
+    section_count = len(sections)
+    total_chars = sum(len(s.get("text") or "") for s in sections)
+    article_headings = count_article_headings(sections)
+
+    suspect = (
+        total_chars >= LOW_QUALITY_MIN_CHARS
+        and section_count <= LOW_QUALITY_MAX_SECTIONS
+        and article_headings == 0
+    )
+    if suspect:
+        quality = "suspect"
+    elif total_chars < THIN_MAX_CHARS:
+        quality = "thin"
+    else:
+        quality = "ok"
+
+    return {
+        "section_count": section_count,
+        "total_chars": total_chars,
+        "article_headings": article_headings,
+        "quality": quality,
+    }
+
+
+def summarize_quality(assessments: list[dict]) -> str:
+    """Render a per-run section-count histogram and quality-label breakdown."""
+    if not assessments:
+        return "  (no laws assessed)"
+
+    buckets = [
+        ("0", lambda n: n == 0),
+        ("1", lambda n: n == 1),
+        ("2", lambda n: n == 2),
+        ("3", lambda n: n == 3),
+        ("4-9", lambda n: 4 <= n <= 9),
+        ("10-49", lambda n: 10 <= n <= 49),
+        ("50+", lambda n: n >= 50),
+    ]
+    total = len(assessments)
+    lines = [f"  Laws assessed: {total}", "  Section-count distribution:"]
+    for label, predicate in buckets:
+        count = sum(1 for a in assessments if predicate(a.get("section_count", 0)))
+        if count:
+            pct = 100.0 * count / total
+            lines.append(f"    {label:>6} sections: {count:>6}  ({pct:4.1f}%)")
+
+    quality_counts = {"ok": 0, "thin": 0, "suspect": 0}
+    for a in assessments:
+        quality_counts[a.get("quality", "ok")] = quality_counts.get(a.get("quality", "ok"), 0) + 1
+    lines.append("  Quality labels:")
+    for label in ("ok", "thin", "suspect"):
+        count = quality_counts.get(label, 0)
+        pct = 100.0 * count / total
+        lines.append(f"    {label:>8}: {count:>6}  ({pct:4.1f}%)")
+
+    suspect = quality_counts.get("suspect", 0)
+    if suspect:
+        pct = 100.0 * suspect / total
+        lines.append(
+            f"  ⚠ {suspect} law(s) ({pct:.1f}%) look structurally collapsed "
+            "(substantial text, no article segmentation)."
+        )
+    return "\n".join(lines)
 
 
 def fetch_with_retry(url: str) -> requests.Response | None:

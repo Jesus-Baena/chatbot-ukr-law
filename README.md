@@ -163,6 +163,31 @@ python 7_ingest_knowledgebase.py --kb-path ../2025-ukraine-law-knowledgebase/004
 Both require `GOOGLE_AI_API_KEY` and Qdrant access. The Flowise serving layer is
 documented in [`flowise/README.md`](flowise/README.md).
 
+## Data quality & incremental updates
+
+- **Extraction quality gate.** `2_scrape_laws.py`, `4_incremental_update.py`, and
+  `6_retry_failed_ingest.py` now assess every extracted law
+  (`law_processing.assess_law_quality`) and print a per-run section-count
+  histogram plus `ok` / `thin` / `suspect` counts. A law with substantial text
+  but no article segmentation is flagged `suspect` (a collapsed extraction). The
+  quality signals are persisted into each `data/laws/*.json`. When
+  `DOCLING_API_URL` is unset, the scripts emit a loud warning because the HTML
+  fallback is the main cause of collapsed extractions.
+- **Audit the corpus** at any time without re-scraping:
+
+  ```bash
+  python corpus_quality_report.py            # distribution + extraction-mode mix
+  python corpus_quality_report.py --worst 25 # largest suspect laws
+  ```
+
+- **Incremental updates** (`4_incremental_update.py`) fetch through the same
+  robust catalogue source as the bootstrap (`catalogue_source.py`) — the old
+  path assumed `zak.json` returned a flat law list and silently ingested
+  nothing. The watermark in `data/state.json` now advances to *today* only after
+  a fully-processed run, to the newest processed enactment date on a run capped
+  by `INCREMENTAL_MAX_LAWS`, and **not at all** when every live source is
+  unavailable — so no update window is silently skipped.
+
 ## Scope Filtering
 
 Set optional filters in `.env`:
@@ -180,8 +205,10 @@ Each row also records the UTC date when that law was last embedded/backfilled, a
 
 | File | Purpose |
 |------|---------|
+| `catalogue_source.py` | Shared catalogue fetch/fallback chain (feed → doc.txt → seed) |
 | `1_fetch_catalogue.py` | Download law ID catalogue from open data portal |
 | `2_scrape_laws.py` | Scrape full text from zakon.rada.gov.ua |
+| `corpus_quality_report.py` | Audit scraped laws for collapsed extraction / missing titles |
 | `3_chunk_embed.py` | Chunk, embed, upsert to Qdrant |
 | `4_incremental_update.py` | Delta updates (new laws since last run) |
 | `5_query.py` | RAG query interface (CLI, Gemini end-to-end) |
