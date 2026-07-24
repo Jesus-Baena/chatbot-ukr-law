@@ -309,8 +309,17 @@ def upsert_to_qdrant(
     points = []
     for chunk, vector in zip(chunks, embeddings):
         point_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{chunk['law_id']}:{chunk['chunk_index']}"))
-        payload = {key: value for key, value in chunk.items() if key != "text"}
+        # Metadata fields (everything except the chunk body).
+        meta = {key: value for key, value in chunk.items() if key != "text"}
+        # Flat fields (kept for Qdrant payload indexes / direct filtering) PLUS a
+        # nested ``metadata`` object. The serving layer (Flowise Qdrant node) is
+        # configured with contentPayloadKey=text / metadataPayloadKey=metadata and
+        # returns ``payload["metadata"]`` verbatim as ``sourceDocuments[].metadata``.
+        # Without this nested copy, source_type/report_title/pub_date never reach
+        # the frontend and the "Analysis" badge can't render.
+        payload = dict(meta)
         payload["text"] = chunk["text"]
+        payload["metadata"] = meta
         points.append(PointStruct(id=point_id, vector=vector, payload=payload))
 
     # Upload in batches to avoid Qdrant write-timeout on large payloads
