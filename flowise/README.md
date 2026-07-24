@@ -1,18 +1,29 @@
 # Flowise chatflow — Ukraine Law Paralegal RAG
 
-The production answer path is a **Flowise Agentflow v2**. The frontend
-(`../index.html`) POSTs to its prediction endpoint and renders `text` +
-`sourceDocuments`.
+> **Status / source of truth.** A **live** chatflow already serves this demo:
+> id `6b3a8804-5200-428f-afd0-abedc9c1f49c` on **`flowise.baena.site`**, wired
+> into the portfolio site's `demos/paralegal-advisor` page. It currently uses
+> `rada_legislation` + `curated_legislation` retrievers + Gemini. The live graph
+> is the source of truth — **export it from the Flowise UI and commit it here.**
+> The `flowise.baena.site` DB is *not* the same as `flowise.baena.info` (whose
+> DB backs the other flows), so the export is the only reliable reference.
+>
+> `ukr-law-chatflow.json` here is a **proposed reference build** for the
+> three-collection upgrade (adding the `secondary_reports` retriever), authored
+> against the `flowise.baena.info` node versions — **treat it as a template,
+> not the live flow**, and reconcile it against the real export before importing.
 
-`ukr-law-chatflow.json` is a **real, importable Agentflow** (Start → 3
-retrievers → Agent), generated to match this Flowise build's node versions
-(`startAgentflow` 1.1, `retrieverAgentflow` 1.1, `agentAgentflow` 3.2). It is
-**not fully turnkey**: after import you must bind 3 Document Stores and 1
-credential in the UI (see below) — those are UI/credential-encrypted entities
-that can't live in an exported graph. After finalizing in the UI, use **Export
-Agentflow** and overwrite this file so git tracks the real state. Flows live in
-the Supabase `flowise` schema and are **lost on schema drop**
-(`2025-swarm-infrastructure-deployment/FLOWISE_RUNBOOK.md`).
+The frontend POSTs `question` to `/api/v1/prediction/{id}` and renders `text` +
+`sourceDocuments`. The real UI is the portfolio's `paralegal-advisor.vue` (this
+repo's `../index.html` is a standalone demo of the same contract).
+
+`ukr-law-chatflow.json` is an importable Agentflow (Start → 3 retrievers →
+Agent) matching node versions `startAgentflow` 1.1, `retrieverAgentflow` 1.1,
+`agentAgentflow` 3.2. It is **not turnkey**: after import you bind 3 Document
+Stores and 1 credential in the UI (see below) — UI/credential-encrypted entities
+that can't live in an exported graph. Flows are **lost on schema drop**
+(`2025-swarm-infrastructure-deployment/FLOWISE_RUNBOOK.md`), so keep the export
+in git.
 
 ## Architecture (this Flowise build)
 
