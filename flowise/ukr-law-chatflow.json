@@ -1,61 +1,315 @@
 {
-  "_note": "Build spec for the Ukraine-law RAG chatflow. Replace this file with the real Flowise export (Export Chatflow) once built in the UI. See README.md in this folder. Kept in git because Flowise flows otherwise live only in Supabase and are lost on schema drop.",
-  "chatflow": {
-    "name": "Ukraine Law Paralegal RAG",
-    "isPublic": true,
-    "returnSourceDocuments": true,
-    "nodes": [
-      {
-        "type": "googleGenerativeAIEmbeddings",
-        "label": "Gemini Embeddings",
-        "params": {
-          "modelName": "gemini-embedding-001",
-          "taskType": "RETRIEVAL_QUERY",
-          "outputDimensionality": 3072,
-          "credential": "GOOGLE_AI_API_KEY"
-        },
-        "_note": "Dimension MUST equal the collections' EMBED_DIM (3072). 3072 is gemini-embedding-001's native dimension, so most Flowise builds don't need to set outputDimensionality explicitly."
+  "nodes": [
+    {
+      "id": "startAgentflow_0",
+      "type": "agentFlow",
+      "position": {
+        "x": 23,
+        "y": 120
       },
-      {
-        "type": "qdrant",
-        "label": "Qdrant — Rada corpus",
-        "params": {
-          "qdrantServerUrl": "http://storage_qdrant:6333",
-          "qdrantCollection": "rada_legislation",
-          "topK": 4,
-          "credential": "QDRANT_API_KEY_ASCII"
-        }
+      "positionAbsolute": {
+        "x": 23,
+        "y": 120
       },
-      {
-        "type": "qdrant",
-        "label": "Qdrant — Curated humanitarian KB",
-        "params": {
-          "qdrantServerUrl": "http://storage_qdrant:6333",
-          "qdrantCollection": "curated_legislation",
-          "topK": 3,
-          "credential": "QDRANT_API_KEY_ASCII",
-          "metadataFilter": { "humanitarian_specific": true }
-        },
-        "_note": "Combine with the Rada retriever via a fusion / compose-retrievers node, or a Tool Agent with two retriever tools. MVP fallback: drop this node and use the Rada retriever alone."
-      },
-      {
-        "type": "chatGoogleGenerativeAI",
-        "label": "Gemini (generation)",
-        "params": {
-          "modelName": "gemini-2.0-flash",
-          "temperature": 0.2,
-          "credential": "GOOGLE_AI_API_KEY",
-          "systemMessagePrompt": "You are a legal research assistant specializing in Ukrainian legislation.\nYou answer questions about Ukrainian law based on retrieved legal text excerpts.\n\nGuidelines:\n- Base your answer strictly on the provided legal excerpts\n- Cite the specific law title and article/section when possible\n- If the excerpts don't fully answer the question, say so clearly\n- You may answer in English even if the source texts are in Ukrainian\n- Note the enactment date of relevant laws, especially for martial law context\n- Be precise about legal rights, obligations, and procedures"
-        }
-      },
-      {
-        "type": "conversationalRetrievalQAChain",
-        "label": "Retrieval QA Chain",
-        "params": {
-          "returnSourceDocuments": true
-        },
-        "_note": "Wire: embeddings + retriever(s) + Gemini LLM. Enable Return Source Documents."
+      "width": 103,
+      "height": 66,
+      "selected": false,
+      "dragging": false,
+      "data": {
+        "id": "startAgentflow_0",
+        "name": "startAgentflow",
+        "type": "Start",
+        "color": "#7EE787",
+        "label": "Start",
+        "version": 1.1,
+        "category": "Agent Flows",
+        "description": "Starting point of the agentflow",
+        "filePath": "/usr/local/lib/node_modules/flowise/node_modules/flowise-components/dist/nodes/agentflow/Start/Start.js",
+        "baseClasses": [
+          "Start"
+        ],
+        "hideInput": true,
+        "inputAnchors": [],
+        "inputs": {},
+        "outputs": {},
+        "outputAnchors": [
+          {
+            "id": "startAgentflow_0-output-startAgentflow",
+            "name": "startAgentflow",
+            "label": "Start"
+          }
+        ],
+        "selected": false
       }
-    ]
+    },
+    {
+      "id": "retrieverAgentflow_0",
+      "type": "agentFlow",
+      "position": {
+        "x": 240,
+        "y": 50
+      },
+      "positionAbsolute": {
+        "x": 240,
+        "y": 50
+      },
+      "width": 176,
+      "height": 66,
+      "selected": false,
+      "dragging": false,
+      "data": {
+        "id": "retrieverAgentflow_0",
+        "name": "retrieverAgentflow",
+        "type": "Retriever",
+        "color": "#b8bedd",
+        "label": "Primary_Law",
+        "version": 1.1,
+        "category": "Agent Flows",
+        "description": "Retrieve information from vector database",
+        "filePath": "/usr/local/lib/node_modules/flowise/node_modules/flowise-components/dist/nodes/agentflow/Retriever/Retriever.js",
+        "baseClasses": [
+          "Retriever"
+        ],
+        "loadMethods": {},
+        "inputAnchors": [],
+        "outputs": {},
+        "outputAnchors": [
+          {
+            "id": "retrieverAgentflow_0-output-retrieverAgentflow",
+            "name": "retrieverAgentflow",
+            "label": "Retriever"
+          }
+        ],
+        "inputs": {
+          "outputFormat": "textWithMetadata",
+          "retrieverQuery": "Retrieve the relevant Ukrainian statute / regulation text (articles, sections) that answers the user's question.",
+          "retrieverUpdateState": "",
+          "retrieverKnowledgeDocumentStores": [
+            {
+              "documentStore": "<REPLACE_WITH_RADA_DOCSTORE_ID>:rada_legislation"
+            }
+          ]
+        },
+        "selected": false
+      }
+    },
+    {
+      "id": "retrieverAgentflow_1",
+      "type": "agentFlow",
+      "position": {
+        "x": 240,
+        "y": 160
+      },
+      "positionAbsolute": {
+        "x": 240,
+        "y": 160
+      },
+      "width": 176,
+      "height": 66,
+      "selected": false,
+      "dragging": false,
+      "data": {
+        "id": "retrieverAgentflow_1",
+        "name": "retrieverAgentflow",
+        "type": "Retriever",
+        "color": "#b8bedd",
+        "label": "Curated_Law",
+        "version": 1.1,
+        "category": "Agent Flows",
+        "description": "Retrieve information from vector database",
+        "filePath": "/usr/local/lib/node_modules/flowise/node_modules/flowise-components/dist/nodes/agentflow/Retriever/Retriever.js",
+        "baseClasses": [
+          "Retriever"
+        ],
+        "loadMethods": {},
+        "inputAnchors": [],
+        "outputs": {},
+        "outputAnchors": [
+          {
+            "id": "retrieverAgentflow_1-output-retrieverAgentflow",
+            "name": "retrieverAgentflow",
+            "label": "Retriever"
+          }
+        ],
+        "inputs": {
+          "outputFormat": "textWithMetadata",
+          "retrieverQuery": "Retrieve relevant curated humanitarian legislation (IDPs, martial law, social protection) for the user's question.",
+          "retrieverUpdateState": "",
+          "retrieverKnowledgeDocumentStores": [
+            {
+              "documentStore": "<REPLACE_WITH_CURATED_DOCSTORE_ID>:curated_legislation"
+            }
+          ]
+        },
+        "selected": false
+      }
+    },
+    {
+      "id": "retrieverAgentflow_2",
+      "type": "agentFlow",
+      "position": {
+        "x": 240,
+        "y": 270
+      },
+      "positionAbsolute": {
+        "x": 240,
+        "y": 270
+      },
+      "width": 176,
+      "height": 66,
+      "selected": false,
+      "dragging": false,
+      "data": {
+        "id": "retrieverAgentflow_2",
+        "name": "retrieverAgentflow",
+        "type": "Retriever",
+        "color": "#b8bedd",
+        "label": "Secondary_Analysis",
+        "version": 1.1,
+        "category": "Agent Flows",
+        "description": "Retrieve information from vector database",
+        "filePath": "/usr/local/lib/node_modules/flowise/node_modules/flowise-components/dist/nodes/agentflow/Retriever/Retriever.js",
+        "baseClasses": [
+          "Retriever"
+        ],
+        "loadMethods": {},
+        "inputAnchors": [],
+        "outputs": {},
+        "outputAnchors": [
+          {
+            "id": "retrieverAgentflow_2-output-retrieverAgentflow",
+            "name": "retrieverAgentflow",
+            "label": "Retriever"
+          }
+        ],
+        "inputs": {
+          "outputFormat": "textWithMetadata",
+          "retrieverQuery": "Retrieve expert analyses/commentary that review the laws relevant to the user's question (context only, not law).",
+          "retrieverUpdateState": "",
+          "retrieverKnowledgeDocumentStores": [
+            {
+              "documentStore": "<REPLACE_WITH_REPORTS_DOCSTORE_ID>:secondary_reports"
+            }
+          ]
+        },
+        "selected": false
+      }
+    },
+    {
+      "id": "agentAgentflow_0",
+      "type": "agentFlow",
+      "position": {
+        "x": 500,
+        "y": 120
+      },
+      "positionAbsolute": {
+        "x": 500,
+        "y": 120
+      },
+      "width": 141,
+      "height": 100,
+      "selected": false,
+      "dragging": false,
+      "data": {
+        "id": "agentAgentflow_0",
+        "name": "agentAgentflow",
+        "type": "Agent",
+        "color": "#4DD0E1",
+        "label": "Legal Answer Agent",
+        "version": 3.2,
+        "category": "Agent Flows",
+        "description": "Dynamically choose and utilize tools during runtime, enabling multi-step reasoning",
+        "filePath": "/usr/local/lib/node_modules/flowise/node_modules/flowise-components/dist/nodes/agentflow/Agent/Agent.js",
+        "baseClasses": [
+          "Agent"
+        ],
+        "loadMethods": {},
+        "inputAnchors": [],
+        "outputs": {},
+        "outputAnchors": [
+          {
+            "id": "agentAgentflow_0-output-agentAgentflow",
+            "name": "agentAgentflow",
+            "label": "Agent"
+          }
+        ],
+        "inputs": {
+          "agentModel": "chatGoogleGenerativeAI",
+          "agentTools": "",
+          "agentMessages": [
+            {
+              "role": "system",
+              "content": "You are a legal research assistant specializing in Ukrainian legislation. You answer questions about Ukrainian law based on retrieved excerpts.\n\nYou receive excerpts from three retrievers, grouped by authority:\n- \"Primary law\" (rada_legislation) and \"Curated law\" (curated_legislation) are the actual legislative text — treat these as authoritative.\n- \"Secondary analysis\" (secondary_reports) are expert reports that review the law. Use them only for context, interpretation, or to flag proposed reforms. Never present a report's claim as the law itself, and note that it is commentary (with its date, since analyses go out of date).\n\nGuidelines:\n- Base legal conclusions on the primary/curated legal excerpts\n- Cite the specific law title and article/section when possible\n- When you rely on a secondary analysis, attribute it as commentary and give its date\n- If the excerpts don't fully answer the question, say so clearly\n- You may answer in English even if the source texts are in Ukrainian\n- Note the enactment date of relevant laws, especially for martial law context\n- Be precise about legal rights, obligations, and procedures\n- Always return the source documents so citations can be shown"
+            }
+          ],
+          "agentMemoryType": "allMessages",
+          "agentModelConfig": {
+            "modelName": "gemini-2.0-flash",
+            "temperature": 0.4,
+            "streaming": true,
+            "agentModel": "chatGoogleGenerativeAI",
+            "FLOWISE_CREDENTIAL_ID": "<REPLACE_WITH_GOOGLE_AI_CREDENTIAL_ID>"
+          },
+          "agentEnableMemory": true,
+          "agentReturnResponseAs": "userMessage"
+        },
+        "selected": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "startAgentflow_0",
+      "target": "retrieverAgentflow_0",
+      "sourceHandle": "startAgentflow_0-output-startAgentflow",
+      "targetHandle": "retrieverAgentflow_0",
+      "type": "agentFlow",
+      "id": "startAgentflow_0-retrieverAgentflow_0"
+    },
+    {
+      "source": "startAgentflow_0",
+      "target": "retrieverAgentflow_1",
+      "sourceHandle": "startAgentflow_0-output-startAgentflow",
+      "targetHandle": "retrieverAgentflow_1",
+      "type": "agentFlow",
+      "id": "startAgentflow_0-retrieverAgentflow_1"
+    },
+    {
+      "source": "startAgentflow_0",
+      "target": "retrieverAgentflow_2",
+      "sourceHandle": "startAgentflow_0-output-startAgentflow",
+      "targetHandle": "retrieverAgentflow_2",
+      "type": "agentFlow",
+      "id": "startAgentflow_0-retrieverAgentflow_2"
+    },
+    {
+      "source": "retrieverAgentflow_0",
+      "target": "agentAgentflow_0",
+      "sourceHandle": "retrieverAgentflow_0-output-retrieverAgentflow",
+      "targetHandle": "agentAgentflow_0",
+      "type": "agentFlow",
+      "id": "retrieverAgentflow_0-agentAgentflow_0"
+    },
+    {
+      "source": "retrieverAgentflow_1",
+      "target": "agentAgentflow_0",
+      "sourceHandle": "retrieverAgentflow_1-output-retrieverAgentflow",
+      "targetHandle": "agentAgentflow_0",
+      "type": "agentFlow",
+      "id": "retrieverAgentflow_1-agentAgentflow_0"
+    },
+    {
+      "source": "retrieverAgentflow_2",
+      "target": "agentAgentflow_0",
+      "sourceHandle": "retrieverAgentflow_2-output-retrieverAgentflow",
+      "targetHandle": "agentAgentflow_0",
+      "type": "agentFlow",
+      "id": "retrieverAgentflow_2-agentAgentflow_0"
+    }
+  ],
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "zoom": 1
   }
 }
