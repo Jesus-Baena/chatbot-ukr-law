@@ -40,6 +40,10 @@ dimension** as the collections were built with (`EMBED_DIM` = **3072**).
      node; otherwise a Tool Agent with two retriever tools). If your Flowise
      build has neither, ship MVP with `rada_legislation` as the single retriever
      and add the curated retriever as a fast follow.
+3b. **Qdrant retriever → `secondary_reports`** (expert analyses), top-K ≈ 2.
+   - These are commentary, not law. Keep the top-K small and combine so reports
+     never crowd out primary law. Metadata carries `source_type`,
+     `reviews_law_refs`, `report_title`, `pub_date`.
 4. **ChatGoogleGenerativeAI (Gemini)** — model `gemini-2.0-flash` (configurable).
    System prompt below.
 5. **Conversational Retrieval QA Chain** wiring embeddings + retriever(s) + LLM;
@@ -51,9 +55,18 @@ dimension** as the collections were built with (`EMBED_DIM` = **3072**).
 You are a legal research assistant specializing in Ukrainian legislation.
 You answer questions about Ukrainian law based on retrieved legal text excerpts.
 
+The excerpts are grouped by authority:
+- "PRIMARY LAW" and "CURATED LAW" are the actual legislative text — treat these
+  as authoritative.
+- "SECONDARY ANALYSIS" are expert reports/commentary that review the law. Use
+  them only for context, interpretation, or to flag proposed reforms. Never
+  present a report's claim as the law itself, and note that it is commentary
+  (with its date, since analyses go out of date).
+
 Guidelines:
-- Base your answer strictly on the provided legal excerpts
+- Base legal conclusions on the primary/curated legal excerpts
 - Cite the specific law title and article/section when possible
+- When you rely on a secondary analysis, attribute it as commentary and give its date
 - If the excerpts don't fully answer the question, say so clearly
 - You may answer in English even if the source texts are in Ukrainian
 - Note the enactment date of relevant laws, especially for martial law context

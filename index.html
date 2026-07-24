@@ -303,15 +303,19 @@
     const items = [];
     for (const doc of sourceDocuments) {
       const meta = (doc && doc.metadata) || {};
-      const title = meta.title || meta.law_id || "Source";
+      const isReport = meta.source_type === "secondary_report";
+      const title = meta.report_title || meta.title || meta.law_id || "Source";
       const url = meta.url || "";
       const key = url || title;
       if (seen.has(key)) continue;
       seen.add(key);
-      const safeTitle = escapeHtml(String(title));
+      // Distinguish expert commentary from primary law so users never mistake
+      // an analysis for the statute itself.
+      const label = isReport ? "<em>Analysis:</em> " : "";
+      const safeTitle = label + escapeHtml(String(title));
       items.push(
         url
-          ? `<li><a href="${escapeHtml(url)}" target="_blank" rel="noopener">${safeTitle}</a></li>`
+          ? `<li>${label}<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(String(title))}</a></li>`
           : `<li>${safeTitle}</li>`
       );
     }

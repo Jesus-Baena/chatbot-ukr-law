@@ -16,9 +16,14 @@ Qdrant: rada_legislation
    ↑ [4_incremental_update.py] (n8n cron)
    ↺ [8_reembed_to_gemini.py] (migration backfill from Postgres staging)
 
+INGEST (secondary reports)
+report files (pdf/html/docx)
+   ↓ [10_ingest_reports.py] (Docling / PyMuPDF + linkage metadata)
+Qdrant: secondary_reports
+
 SERVE
-index.html  →  Flowise chatflow (Gemini embeddings → Qdrant ×2 → Gemini answer)
-            →  { text, sourceDocuments }
+index.html  →  Flowise chatflow (Gemini embeddings → Qdrant ×3 → Gemini answer)
+            →  { text, sourceDocuments }  (law-first; reports labelled as analysis)
 ```
 
 ## Stack
@@ -236,6 +241,44 @@ python 8_reembed_to_gemini.py --recreate --skip-suspect  # + drop collapsed laws
 `--recreate` drops and rebuilds the collection, so no stale chunks are left
 behind from the previous (smaller) chunking.
 
+## Secondary reports (expert analyses)
+
+Alongside primary legislation and the curated humanitarian KB, the system
+ingests **secondary reports** — expert analyses that *review* specific laws or
+topics (e.g. "Ukraine Data Protection vs. GDPR"). These are kept in their own
+`secondary_reports` collection and tagged `source_type="secondary_report"` so
+the serving layer presents them as clearly-labelled commentary, **never as
+primary law**.
+
+```bash
+# Point at a folder of report files (pdf / html / docx)
+python 10_ingest_reports.py --reports-path "/path/to/reports" --dry-run   # inspect
+python 10_ingest_reports.py --reports-path "/path/to/reports"             # ingest
+```
+
+For each report, `report_processing.py` extracts the text (Docling first,
+PyMuPDF/HTML fallback) and auto-derives linkage metadata:
+
+- **`reviews_law_refs`** — the law/draft-law numbers the report cites
+  (e.g. `2297-VI`, `8153`), so a report can be surfaced alongside the laws it
+  reviews. (Cited *official* numbers may differ from a law's Rada URL id;
+  exact cross-collection joins are a follow-up.)
+- **`pub_date`** — publication date (latest dated mention as a proxy); also
+  stored as `enacted_date_int` so the shared date filter works across
+  collections. Analyses go stale, so the answer prompt cites their date.
+- **`title`**, **`summary`** (executive summary when present).
+
+An optional `reports_metadata.csv` in the reports folder (columns: `filename`,
+`title`, `authoring_org`, `source_url`, `pub_date`, `topics`,
+`reviews_law_ids`) overrides/augments the auto-detected values.
+
+**Serving is law-first.** `5_query.py` (and the Flowise flow) retrieve law and
+reports separately, fill up to `top_k` with primary/curated law, then add a
+small capped set of report chunks. The context is grouped into `PRIMARY LAW` /
+`CURATED LAW` / `SECONDARY ANALYSIS` blocks and the system prompt instructs the
+model to base legal conclusions on the law and treat reports as dated
+commentary. The frontend labels report sources as *Analysis:*.
+
 ## Scope Filtering
 
 Set optional filters in `.env`:
@@ -263,6 +306,8 @@ Each row also records the UTC date when that law was last embedded/backfilled, a
 | `5_query.py` | RAG query interface (CLI, Gemini end-to-end) |
 | `6_retry_failed_ingest.py` | Retry failed law files and vectorize recovered ones |
 | `7_ingest_knowledgebase.py` | Ingest curated humanitarian KB → `curated_legislation` |
+| `report_processing.py` | Extract secondary reports (Docling / PyMuPDF) + linkage metadata |
+| `10_ingest_reports.py` | Ingest secondary reports → `secondary_reports` |
 | `8_reembed_to_gemini.py` | Re-embed Rada corpus with Gemini from Postgres staging |
 | `index.html` | Chat frontend (calls the Flowise prediction endpoint) |
 | `flowise/` | Flowise chatflow build spec + export (serving layer) |

@@ -19,7 +19,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, Range
 
 from config import (
-    QDRANT_COLLECTION, CURATED_COLLECTION,
+    QDRANT_COLLECTION, CURATED_COLLECTION, REPORTS_COLLECTION,
     GEMINI_API_KEY, GEMINI_API_BASE, GEMINI_CHAT_MODEL, REQUEST_TIMEOUT,
 )
 from service_clients import get_qdrant_client
@@ -32,9 +32,18 @@ TOP_K = 6  # number of chunks to retrieve
 SYSTEM_PROMPT = """You are a legal research assistant specializing in Ukrainian legislation.
 You answer questions about Ukrainian law based on retrieved legal text excerpts.
 
+The excerpts are grouped by authority:
+- "PRIMARY LAW" and "CURATED LAW" are the actual legislative text — treat these
+  as authoritative.
+- "SECONDARY ANALYSIS" are expert reports/commentary that review the law. Use
+  them only for context, interpretation, or to flag proposed reforms. Never
+  present a report's claim as the law itself, and note that it is commentary
+  (with its date, since analyses go out of date).
+
 Guidelines:
-- Base your answer strictly on the provided legal excerpts
-- Cite the specific law title and article/section when possible  
+- Base legal conclusions on the primary/curated legal excerpts
+- Cite the specific law title and article/section when possible
+- When you rely on a secondary analysis, attribute it as commentary and give its date
 - If the excerpts don't fully answer the question, say so clearly
 - You may answer in English even if the source texts are in Ukrainian
 - Note the enactment date of relevant laws, especially for martial law context
@@ -70,18 +79,30 @@ def _search_collection(client: QdrantClient, query_vector: list[float],
             with_payload=True,
         )
 
+    def _source_type(payload) -> str:
+        explicit = payload.get("source_type")
+        if explicit:
+            return explicit
+        if collection_name == REPORTS_COLLECTION:
+            return "secondary_report"
+        if collection_name == CURATED_COLLECTION or str(payload.get("source", "")).startswith("curated"):
+            return "curated_law"
+        return "primary_law"
+
     chunks = []
     for hit in results:
         p = hit.payload
         chunks.append({
             "score": round(hit.score, 3),
             "text": p.get("text", ""),
-            "title": p.get("title", ""),
+            "title": p.get("report_title") or p.get("title", ""),
             "law_id": p.get("law_id", ""),
             "url": p.get("url", ""),
-            "enacted_date": p.get("enacted_date", ""),
+            "enacted_date": p.get("pub_date") or p.get("enacted_date", ""),
             "section_heading": p.get("section_heading", ""),
             "source": p.get("source", collection_name),
+            "source_type": _source_type(p),
+            "reviews_law_refs": p.get("reviews_law_refs", []),
         })
     return chunks
 
@@ -91,14 +112,16 @@ def retrieve(query: str,
              category: str = None, top_k: int = TOP_K,
              collections: list[str] | None = None) -> list[dict]:
     """
-    Retrieve top-K relevant chunks across one or more Qdrant collections.
+    Retrieve relevant chunks across the law and report collections.
 
     Embeds the query once via Gemini (RETRIEVAL_QUERY task), searches each
-    collection, then merges and re-sorts by score. Missing collections are
-    skipped gracefully. Optional filters: date_from, category.
+    collection, then composes results **law-first**: up to ``top_k`` primary/
+    curated law chunks, plus a small, capped set of secondary-report chunks as
+    commentary (never crowding out the law). Missing collections are skipped
+    gracefully. Optional filters: date_from, category.
     """
     if collections is None:
-        collections = [QDRANT_COLLECTION, CURATED_COLLECTION]
+        collections = [QDRANT_COLLECTION, CURATED_COLLECTION, REPORTS_COLLECTION]
 
     query_vector = embed_query(query)
 
@@ -134,18 +157,49 @@ def retrieve(query: str,
         except Exception as exc:  # collection may not exist yet
             print(f"  (skipping collection '{collection_name}': {exc})")
 
-    merged.sort(key=lambda c: c["score"], reverse=True)
-    return merged[:top_k]
+    # Law-first composition: law chunks fill up to top_k; reports are additive
+    # but capped so commentary never crowds out the actual legislation.
+    report_budget = max(1, top_k // 3)
+    law = sorted((c for c in merged if c["source_type"] != "secondary_report"),
+                 key=lambda c: c["score"], reverse=True)
+    reports = sorted((c for c in merged if c["source_type"] == "secondary_report"),
+                     key=lambda c: c["score"], reverse=True)
+    return law[:top_k] + reports[:report_budget]
+
+
+_SOURCE_TYPE_LABELS = {
+    "primary_law": "PRIMARY LAW",
+    "curated_law": "CURATED LAW",
+    "secondary_report": "SECONDARY ANALYSIS",
+}
 
 
 def format_context(chunks: list[dict]) -> str:
-    """Format retrieved chunks into a context block for the LLM."""
-    parts = []
-    for i, c in enumerate(chunks, 1):
-        heading = f" — {c['section_heading']}" if c['section_heading'] else ""
-        source = f"[{i}] {c['title']}{heading} (enacted: {c['enacted_date'] or 'n/a'}, score: {c['score']})"
-        parts.append(f"{source}\n{c['text']}\nURL: {c['url']}")
-    return "\n\n---\n\n".join(parts)
+    """Format retrieved chunks into authority-grouped blocks for the LLM."""
+    groups: dict[str, list[dict]] = {"primary_law": [], "curated_law": [], "secondary_report": []}
+    for c in chunks:
+        groups.setdefault(c.get("source_type", "primary_law"), []).append(c)
+
+    blocks = []
+    idx = 1
+    for source_type in ("primary_law", "curated_law", "secondary_report"):
+        group = groups.get(source_type) or []
+        if not group:
+            continue
+        is_report = source_type == "secondary_report"
+        date_label = "published" if is_report else "enacted"
+        parts = [f"=== {_SOURCE_TYPE_LABELS[source_type]} ==="]
+        for c in group:
+            heading = f" — {c['section_heading']}" if c['section_heading'] else ""
+            reviews = ""
+            if is_report and c.get("reviews_law_refs"):
+                reviews = f", reviews: {', '.join(c['reviews_law_refs'])}"
+            src = (f"[{idx}] {c['title']}{heading} "
+                   f"({date_label}: {c['enacted_date'] or 'n/a'}{reviews}, score: {c['score']})")
+            parts.append(f"{src}\n{c['text']}\nURL: {c['url']}")
+            idx += 1
+        blocks.append("\n\n".join(parts))
+    return "\n\n---\n\n".join(blocks)
 
 
 def ask_gemini(query: str, context: str) -> str:
@@ -240,9 +294,13 @@ def main():
     print("\nSources:")
     seen = set()
     for c in chunks:
-        if c["url"] not in seen:
-            print(f"  • {c['title']} — {c['url']}")
-            seen.add(c["url"])
+        key = c["url"] or c["title"]
+        if key in seen:
+            continue
+        seen.add(key)
+        tag = "[analysis] " if c.get("source_type") == "secondary_report" else ""
+        suffix = f" — {c['url']}" if c["url"] else ""
+        print(f"  • {tag}{c['title']}{suffix}")
 
 
 if __name__ == "__main__":

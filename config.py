@@ -62,6 +62,10 @@ QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "rada_legislation")
 # Hand-curated humanitarian knowledgebase, kept in a separate collection
 CURATED_COLLECTION = os.getenv("CURATED_COLLECTION", "curated_legislation")
+# Secondary reports (expert analyses reviewing specific laws/topics) — kept in
+# their own collection so they can be retrieved as clearly-labelled commentary,
+# never mixed in as primary law.
+REPORTS_COLLECTION = os.getenv("REPORTS_COLLECTION", "secondary_reports")
 
 # Postgres (staging layer before Qdrant)
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
