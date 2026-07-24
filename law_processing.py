@@ -5,6 +5,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from config import DOCLING_API_URL, MAX_RETRIES, REQUEST_TIMEOUT, env_int
+from date_utils import normalize_date
 from service_clients import require_docling_url
 
 
@@ -65,7 +66,7 @@ def _extract_metadata_from_html(html: str) -> dict:
         text = meta_area.get_text(" ", strip=True)
         dates = re.findall(r"\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4}", text)
         if dates:
-            enacted_date = dates[0]
+            enacted_date = normalize_date(dates[0])
 
     return {
         "title": title,
@@ -189,7 +190,7 @@ def _docling_response_to_law(data: dict, law_id: str, url: str, html: str) -> di
         or html_metadata["title"]
     )
     law_number = data.get("law_number") or document.get("law_number") or metadata.get("law_number") or ""
-    enacted_date = (
+    enacted_date = normalize_date(
         data.get("enacted_date")
         or document.get("enacted_date")
         or metadata.get("enacted_date")
@@ -233,7 +234,7 @@ def extract_law_from_html(html: str, law_id: str, url: str) -> dict | None:
         text = meta_area.get_text(" ", strip=True)
         dates = re.findall(r"\d{4}-\d{2}-\d{2}|\d{2}\.\d{2}\.\d{4}", text)
         if dates:
-            enacted_date = dates[0]
+            enacted_date = normalize_date(dates[0])
 
     body_selectors = [
         {"id": re.compile(r"law", re.I)},

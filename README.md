@@ -202,6 +202,13 @@ documented in [`flowise/README.md`](flowise/README.md).
   python 8_reembed_to_gemini.py --recreate --skip-suspect
   ```
 
+- **Date normalization.** All law dates are normalized to ISO `YYYY-MM-DD` at
+  extraction time (Rada HTML pages emit `DD.MM.YYYY`), and each chunk also
+  carries a sortable `enacted_date_int` (`YYYYMMDD`). Date range filters
+  (`5_query.py --filter-date`, and any date filter in the Flowise flow) query
+  `enacted_date_int` — Qdrant `Range` needs a numeric field, so the old
+  string-based `enacted_date` filter silently returned wrong results. This field
+  is populated on (re-)embed, so rebuild after upgrading.
 - **Incremental updates** (`4_incremental_update.py`) fetch through the same
   robust catalogue source as the bootstrap (`catalogue_source.py`) — the old
   path assumed `zak.json` returned a flat law list and silently ingested

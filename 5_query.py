@@ -24,6 +24,7 @@ from config import (
 )
 from service_clients import get_qdrant_client
 from embedding_pipeline import embed_query
+from date_utils import date_to_int, normalize_date
 
 
 TOP_K = 6  # number of chunks to retrieve
@@ -104,10 +105,17 @@ def retrieve(query: str,
     # Build optional filters
     filters = []
     if date_from:
-        filters.append(FieldCondition(
-            key="enacted_date",
-            range=Range(gte=date_from)
-        ))
+        date_from_int = date_to_int(normalize_date(date_from))
+        if date_from_int is not None:
+            # Range filters need the numeric enacted_date_int field. Points with
+            # an unknown/unparseable date lack the field and are excluded, which
+            # is the desired behaviour for a "since date" filter.
+            filters.append(FieldCondition(
+                key="enacted_date_int",
+                range=Range(gte=date_from_int)
+            ))
+        else:
+            print(f"  (ignoring unparseable --filter-date: {date_from!r})")
     if category:
         from qdrant_client.models import MatchValue
         filters.append(FieldCondition(

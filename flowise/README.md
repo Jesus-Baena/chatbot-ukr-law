@@ -33,6 +33,9 @@ dimension** as the collections were built with (`EMBED_DIM` = **3072**).
 3. **Qdrant retriever → `curated_legislation`** (curated humanitarian KB), top-K ≈ 3.
    - Optionally a metadata filter favoring `humanitarian_specific = true` /
      higher `utility_score`.
+   - Any **date range** filter must target the numeric `enacted_date_int`
+     (`YYYYMMDD`) payload field, not the string `enacted_date` — Qdrant range
+     filtering only works on numeric fields.
    - Combine the two retrievers (newer Flowise: a fusion / "compose retrievers"
      node; otherwise a Tool Agent with two retriever tools). If your Flowise
      build has neither, ship MVP with `rada_legislation` as the single retriever

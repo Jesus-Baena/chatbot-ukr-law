@@ -32,6 +32,7 @@ from config import (
     QUERY_PREFIX,
     REQUEST_TIMEOUT,
 )
+from date_utils import enacted_date_fields
 
 
 LOW_SIGNAL_CHUNK_SNIPPETS = [
@@ -159,6 +160,13 @@ def setup_qdrant(
         field_name="enacted_date",
         field_schema=PayloadSchemaType.KEYWORD,
     )
+    # Sortable YYYYMMDD integer for date range filtering (Qdrant Range needs a
+    # numeric field — the KEYWORD enacted_date above only supports exact match).
+    client.create_payload_index(
+        collection_name=collection_name,
+        field_name="enacted_date_int",
+        field_schema=PayloadSchemaType.INTEGER,
+    )
     client.create_payload_index(
         collection_name=collection_name,
         field_name="text",
@@ -246,6 +254,12 @@ def law_to_chunks(law: dict) -> list[dict]:
     chunks = []
     chunk_index = 0
 
+    # Normalize the law's date once (prefer extracted enacted_date, fall back to
+    # the catalogue date) into an ISO string + sortable YYYYMMDD int.
+    enacted_date, enacted_date_int = enacted_date_fields(
+        law.get("enacted_date") or law.get("catalogue_date", "")
+    )
+
     for section in law.get("sections", []):
         heading = section.get("heading", "")
         text = section.get("text", "")
@@ -256,18 +270,19 @@ def law_to_chunks(law: dict) -> list[dict]:
         for chunk_text in section_chunks:
             if _is_low_information_chunk(chunk_text):
                 continue
-            chunks.append(
-                {
-                    "text": chunk_text,
-                    "law_id": law["id"],
-                    "title": law.get("title", ""),
-                    "url": law.get("url", ""),
-                    "category": law.get("category", ""),
-                    "enacted_date": law.get("enacted_date") or law.get("catalogue_date", ""),
-                    "section_heading": heading,
-                    "chunk_index": chunk_index,
-                }
-            )
+            chunk = {
+                "text": chunk_text,
+                "law_id": law["id"],
+                "title": law.get("title", ""),
+                "url": law.get("url", ""),
+                "category": law.get("category", ""),
+                "enacted_date": enacted_date,
+                "section_heading": heading,
+                "chunk_index": chunk_index,
+            }
+            if enacted_date_int is not None:
+                chunk["enacted_date_int"] = enacted_date_int
+            chunks.append(chunk)
             chunk_index += 1
 
     return chunks
