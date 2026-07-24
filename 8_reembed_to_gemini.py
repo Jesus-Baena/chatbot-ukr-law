@@ -23,7 +23,7 @@ import argparse
 
 from tqdm import tqdm
 
-from config import QDRANT_COLLECTION, EMBED_DIM, EMBED_MODEL
+from config import QDRANT_COLLECTION, CHUNK_SIZE, EMBED_DIM, EMBED_MODEL
 from embedding_pipeline import (
     embed_chunks,
     get_processed_ids,
@@ -31,6 +31,7 @@ from embedding_pipeline import (
     setup_qdrant,
     upsert_to_qdrant,
 )
+from law_processing import assess_law_quality
 from service_clients import get_qdrant_client
 from staging_db import get_postgres_connection
 
@@ -82,12 +83,18 @@ def main():
                         help="Drop the target collection before rebuilding")
     parser.add_argument("--limit", type=int, default=0,
                         help="Only process the first N laws (0 = all) — useful for smoke tests")
+    parser.add_argument("--skip-suspect", action="store_true",
+                        help="Hold back structurally-collapsed ('suspect') laws from the rebuild")
     args = parser.parse_args()
 
     collection = args.collection
     print("=== Step 8: Re-embedding Rada corpus with Gemini ===")
     print(f"  Model: {EMBED_MODEL} @ {EMBED_DIM}-d")
-    print(f"  Target collection: {collection}\n")
+    print(f"  Chunk size: {CHUNK_SIZE} chars")
+    print(f"  Target collection: {collection}")
+    if args.skip_suspect:
+        print("  Skip-suspect: enabled (collapsed extractions held back)")
+    print()
 
     client = get_qdrant_client()
 
@@ -115,8 +122,12 @@ def main():
         print(f"To re-embed: {len(todo)}\n")
 
         total_chunks = 0
+        skipped_suspect = 0
         for law_id in tqdm(todo, desc="Laws"):
             law = _load_law(conn, law_id)
+            if args.skip_suspect and assess_law_quality(law).get("quality") == "suspect":
+                skipped_suspect += 1
+                continue
             chunks = law_to_chunks(law)
             if not chunks:
                 continue
@@ -129,6 +140,8 @@ def main():
     info = client.get_collection(collection)
     print("\n=== Done ===")
     print(f"  Chunks upserted this run: {total_chunks}")
+    if args.skip_suspect:
+        print(f"  Suspect laws held back:   {skipped_suspect}")
     print(f"  Collection size: {info.points_count} vectors @ {EMBED_DIM}-d")
 
 

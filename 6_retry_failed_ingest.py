@@ -16,7 +16,7 @@ from pathlib import Path
 from config import DATABASE_URL, LAWS_DIR, REQUEST_DELAY
 from embedding_pipeline import embed_chunks, law_to_chunks, setup_qdrant, upsert_to_qdrant
 from indexed_laws_tracker import upsert_indexed_law
-from law_processing import extract_law, fetch_with_retry
+from law_processing import extract_law, fetch_with_retry, summarize_quality, warn_if_docling_disabled
 from service_clients import get_qdrant_client
 from staging_db import ensure_staging_schema, get_postgres_connection, stage_chunks_for_law, stage_law_with_sections
 from staging_db import stage_raw_law_response
@@ -97,6 +97,8 @@ def _recover_law(error_file: Path, catalogue_map: dict[str, dict], pg_conn) -> t
 def main():
     print("=== Step 6: Retry failed ingests ===")
 
+    warn_if_docling_disabled()
+
     catalogue_map = _load_catalogue_map()
     error_files = _find_error_files()
     print(f"Error files found: {len(error_files)}")
@@ -156,6 +158,9 @@ def main():
     if failed:
         for law_id, msg in failed:
             print(f"    - {law_id}: {msg}")
+
+    print("\n=== Extraction quality (recovered laws) ===")
+    print(summarize_quality([law.get("quality", {}) for law in recovered_laws]))
 
 
 if __name__ == "__main__":

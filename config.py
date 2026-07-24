@@ -27,6 +27,17 @@ def _env_bool(name: str, default: bool = False) -> bool:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
+
+def env_int(name: str, default: int) -> int:
+    """Read an int env var, falling back to default when unset/empty/invalid."""
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    try:
+        return int(raw.strip())
+    except ValueError:
+        return default
+
 # Paths
 BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
@@ -51,6 +62,10 @@ QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "").strip()
 QDRANT_COLLECTION = os.getenv("QDRANT_COLLECTION", "rada_legislation")
 # Hand-curated humanitarian knowledgebase, kept in a separate collection
 CURATED_COLLECTION = os.getenv("CURATED_COLLECTION", "curated_legislation")
+# Secondary reports (expert analyses reviewing specific laws/topics) — kept in
+# their own collection so they can be retrieved as clearly-labelled commentary,
+# never mixed in as primary law.
+REPORTS_COLLECTION = os.getenv("REPORTS_COLLECTION", "secondary_reports")
 
 # Postgres (staging layer before Qdrant)
 DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
@@ -78,13 +93,15 @@ GEMINI_API_BASE = os.getenv("GEMINI_API_BASE", "https://generativelanguage.googl
 # gemini-2.0-flash was retired by Google (returns 404) — default to 2.5-flash.
 GEMINI_CHAT_MODEL = os.getenv("GEMINI_CHAT_MODEL", "gemini-2.5-flash").strip()
 
-# Chunking
-# Sized for gemini-embedding-001 (2048-token input limit). ~1800 chars ≈ 450
-# Ukrainian tokens, keeping whole legal articles intact per chunk. The retired
-# Ollama mxbai-embed-large used 400 (its 512-token context) — do NOT revert
-# without re-embedding, and regenerate INDEXED_LAWS.md chunk counts after a change.
-CHUNK_SIZE = 1800       # characters per chunk
-CHUNK_OVERLAP = 300     # character overlap between chunks (~16%)
+# Chunking (character-based; splits are word-boundary aligned).
+# Sized for Gemini gemini-embedding-001 (2048-token input). The old 400-char
+# window was a leftover from mxbai-embed-large's 512-token limit and produced
+# heavy over-fragmentation of legal text; ~1200 chars keeps most individual
+# articles whole while staying well within Gemini's input budget.
+# NOTE: changing these requires re-embedding the corpus to keep chunking
+# consistent — rebuild with `8_reembed_to_gemini.py --recreate`.
+CHUNK_SIZE = env_int("CHUNK_SIZE", 1200)       # characters per chunk
+CHUNK_OVERLAP = env_int("CHUNK_OVERLAP", 200)  # character overlap between chunks
 
 # Scraping
 REQUEST_DELAY = 1.2     # seconds between requests — be polite

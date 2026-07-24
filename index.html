@@ -461,14 +461,20 @@
     const out = [];
     for (const doc of sourceDocuments) {
       const meta = (doc && doc.metadata) || {};
-      const title = meta.title || meta.law_id || meta.source || "Source";
+      // Secondary reports are expert commentary, not statute — flag them so
+      // users never mistake an analysis for the law itself (see main's
+      // secondary_reports collection).
+      const isReport = meta.source_type === "secondary_report";
+      const title = meta.report_title || meta.title || meta.law_id || meta.source || "Source";
       const url = safeUrl(meta.url || "");
       const key = url || title;
       if (seen.has(key)) continue;
       seen.add(key);
       const detailParts = [];
+      if (isReport) detailParts.push("Analysis");
       if (meta.law_id && meta.title) detailParts.push(String(meta.law_id));
-      if (meta.date) detailParts.push(String(meta.date));
+      const date = meta.date || meta.pub_date;
+      if (date) detailParts.push(String(date));
       if (meta.collection) detailParts.push(String(meta.collection));
       out.push({ n: out.length + 1, title: String(title), detail: detailParts.join(" · "), url });
     }

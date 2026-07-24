@@ -32,6 +32,7 @@ from pathlib import Path
 from qdrant_client.models import PayloadSchemaType
 
 from config import CURATED_COLLECTION
+from date_utils import enacted_date_fields
 from embedding_pipeline import embed_chunks, setup_qdrant, upsert_to_qdrant
 from law_processing import extract_law_from_html
 from service_clients import get_qdrant_client
@@ -193,15 +194,18 @@ def main():
         if not row["summary"]:
             continue
         law_id = f"summary-{row['token'] or _slug(row['identifier'] or row['title'])}"
+        enacted_date, enacted_date_int = enacted_date_fields(row["date"])
         chunk = {
             "text": row["summary"],
             "law_id": law_id,
             "title": row["title"] or row["identifier"],
             "url": "",
-            "enacted_date": row["date"],
+            "enacted_date": enacted_date,
             "section_heading": "Summary",
             "chunk_index": 0,
         }
+        if enacted_date_int is not None:
+            chunk["enacted_date_int"] = enacted_date_int
         summary_chunks.extend(_enrich([chunk], row, source="curated_kb_summary"))
 
     if summary_chunks:

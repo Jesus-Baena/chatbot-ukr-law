@@ -16,9 +16,14 @@ Qdrant: rada_legislation
    ↑ [4_incremental_update.py] (n8n cron)
    ↺ [8_reembed_to_gemini.py] (migration backfill from Postgres staging)
 
+INGEST (secondary reports)
+report files (pdf/html/docx)
+   ↓ [10_ingest_reports.py] (Docling / PyMuPDF + linkage metadata)
+Qdrant: secondary_reports
+
 SERVE
-index.html  →  Flowise chatflow (Gemini embeddings → Qdrant ×2 → Gemini answer)
-            →  { text, sourceDocuments }
+index.html  →  Flowise chatflow (Gemini embeddings → Qdrant ×3 → Gemini answer)
+            →  { text, sourceDocuments }  (law-first; reports labelled as analysis)
 ```
 
 ## Stack
@@ -163,6 +168,117 @@ python 7_ingest_knowledgebase.py --kb-path ../2025-ukraine-law-knowledgebase/004
 Both require `GOOGLE_AI_API_KEY` and Qdrant access. The Flowise serving layer is
 documented in [`flowise/README.md`](flowise/README.md).
 
+## Data quality & incremental updates
+
+- **Extraction quality gate.** `2_scrape_laws.py`, `4_incremental_update.py`, and
+  `6_retry_failed_ingest.py` now assess every extracted law
+  (`law_processing.assess_law_quality`) and print a per-run section-count
+  histogram plus `ok` / `thin` / `suspect` counts. A law with substantial text
+  but no article segmentation is flagged `suspect` (a collapsed extraction). The
+  quality signals are persisted into each `data/laws/*.json`. When
+  `DOCLING_API_URL` is unset, the scripts emit a loud warning because the HTML
+  fallback is the main cause of collapsed extractions.
+- **Audit the corpus** at any time without re-scraping:
+
+  ```bash
+  python corpus_quality_report.py            # distribution + extraction-mode mix
+  python corpus_quality_report.py --worst 25 # largest suspect laws
+  ```
+
+- **Hold back collapsed laws.** Pass `--skip-suspect` to keep `suspect` laws out
+  of the index until they are re-extracted, on both the incremental embed and
+  the full rebuild:
+
+  ```bash
+  python 3_chunk_embed.py --skip-suspect
+  python 8_reembed_to_gemini.py --recreate --skip-suspect
+  ```
+
+- **Fix collapsed laws (targeted re-extract).** With `DOCLING_API_URL` set,
+  re-extract only the suspect subset — far cheaper than re-scraping everything.
+  It refreshes the on-disk JSON + Postgres staging and reports how many laws
+  actually improved:
+
+  ```bash
+  python 9_reextract_suspect.py --dry-run   # list what would be re-extracted
+  python 9_reextract_suspect.py --limit 5   # smoke test on 5 laws
+  python 9_reextract_suspect.py             # re-extract the whole suspect subset
+  # then rebuild so chunking is consistent across the collection:
+  python 8_reembed_to_gemini.py --recreate --skip-suspect
+  ```
+
+- **Date normalization.** All law dates are normalized to ISO `YYYY-MM-DD` at
+  extraction time (Rada HTML pages emit `DD.MM.YYYY`), and each chunk also
+  carries a sortable `enacted_date_int` (`YYYYMMDD`). Date range filters
+  (`5_query.py --filter-date`, and any date filter in the Flowise flow) query
+  `enacted_date_int` — Qdrant `Range` needs a numeric field, so the old
+  string-based `enacted_date` filter silently returned wrong results. This field
+  is populated on (re-)embed, so rebuild after upgrading.
+- **Incremental updates** (`4_incremental_update.py`) fetch through the same
+  robust catalogue source as the bootstrap (`catalogue_source.py`) — the old
+  path assumed `zak.json` returned a flat law list and silently ingested
+  nothing. The watermark in `data/state.json` now advances to *today* only after
+  a fully-processed run, to the newest processed enactment date on a run capped
+  by `INCREMENTAL_MAX_LAWS`, and **not at all** when every live source is
+  unavailable — so no update window is silently skipped.
+
+## Chunking
+
+Chunking is tuned for Gemini `gemini-embedding-001` (2048-token input):
+`CHUNK_SIZE=1200`, `CHUNK_OVERLAP=200` characters (word-boundary aligned), both
+overridable via `.env`. The earlier 400-char window was a leftover from the
+mxbai-embed-large 512-token limit and heavily over-fragmented legal text.
+
+**Changing chunk size requires a full re-embed** so the whole collection is
+chunked consistently (mixing sizes degrades retrieval). Rebuild from Postgres
+staging — no re-scrape needed:
+
+```bash
+python 8_reembed_to_gemini.py --recreate                 # apply new chunk size in place
+python 8_reembed_to_gemini.py --recreate --skip-suspect  # + drop collapsed laws
+```
+
+`--recreate` drops and rebuilds the collection, so no stale chunks are left
+behind from the previous (smaller) chunking.
+
+## Secondary reports (expert analyses)
+
+Alongside primary legislation and the curated humanitarian KB, the system
+ingests **secondary reports** — expert analyses that *review* specific laws or
+topics (e.g. "Ukraine Data Protection vs. GDPR"). These are kept in their own
+`secondary_reports` collection and tagged `source_type="secondary_report"` so
+the serving layer presents them as clearly-labelled commentary, **never as
+primary law**.
+
+```bash
+# Point at a folder of report files (pdf / html / docx)
+python 10_ingest_reports.py --reports-path "/path/to/reports" --dry-run   # inspect
+python 10_ingest_reports.py --reports-path "/path/to/reports"             # ingest
+```
+
+For each report, `report_processing.py` extracts the text (Docling first,
+PyMuPDF/HTML fallback) and auto-derives linkage metadata:
+
+- **`reviews_law_refs`** — the law/draft-law numbers the report cites
+  (e.g. `2297-VI`, `8153`), so a report can be surfaced alongside the laws it
+  reviews. (Cited *official* numbers may differ from a law's Rada URL id;
+  exact cross-collection joins are a follow-up.)
+- **`pub_date`** — publication date (latest dated mention as a proxy); also
+  stored as `enacted_date_int` so the shared date filter works across
+  collections. Analyses go stale, so the answer prompt cites their date.
+- **`title`**, **`summary`** (executive summary when present).
+
+An optional `reports_metadata.csv` in the reports folder (columns: `filename`,
+`title`, `authoring_org`, `source_url`, `pub_date`, `topics`,
+`reviews_law_ids`) overrides/augments the auto-detected values.
+
+**Serving is law-first.** `5_query.py` (and the Flowise flow) retrieve law and
+reports separately, fill up to `top_k` with primary/curated law, then add a
+small capped set of report chunks. The context is grouped into `PRIMARY LAW` /
+`CURATED LAW` / `SECONDARY ANALYSIS` blocks and the system prompt instructs the
+model to base legal conclusions on the law and treat reports as dated
+commentary. The frontend labels report sources as *Analysis:*.
+
 ## Scope Filtering
 
 Set optional filters in `.env`:
@@ -180,13 +296,18 @@ Each row also records the UTC date when that law was last embedded/backfilled, a
 
 | File | Purpose |
 |------|---------|
+| `catalogue_source.py` | Shared catalogue fetch/fallback chain (feed → doc.txt → seed) |
 | `1_fetch_catalogue.py` | Download law ID catalogue from open data portal |
 | `2_scrape_laws.py` | Scrape full text from zakon.rada.gov.ua |
+| `corpus_quality_report.py` | Audit scraped laws for collapsed extraction / missing titles |
+| `9_reextract_suspect.py` | Re-extract the suspect subset through Docling |
 | `3_chunk_embed.py` | Chunk, embed, upsert to Qdrant |
 | `4_incremental_update.py` | Delta updates (new laws since last run) |
 | `5_query.py` | RAG query interface (CLI, Gemini end-to-end) |
 | `6_retry_failed_ingest.py` | Retry failed law files and vectorize recovered ones |
 | `7_ingest_knowledgebase.py` | Ingest curated humanitarian KB → `curated_legislation` |
+| `report_processing.py` | Extract secondary reports (Docling / PyMuPDF) + linkage metadata |
+| `10_ingest_reports.py` | Ingest secondary reports → `secondary_reports` |
 | `8_reembed_to_gemini.py` | Re-embed Rada corpus with Gemini from Postgres staging |
 | `index.html` | Chat frontend (calls the Flowise prediction endpoint) |
 | `flowise/` | Flowise chatflow build spec + export (serving layer) |

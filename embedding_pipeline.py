@@ -32,6 +32,7 @@ from config import (
     QUERY_PREFIX,
     REQUEST_TIMEOUT,
 )
+from date_utils import enacted_date_fields
 
 
 LOW_SIGNAL_CHUNK_SNIPPETS = [
@@ -50,31 +51,6 @@ def _is_low_information_chunk(text: str) -> bool:
         return True
 
     return False
-
-
-_DATE_ISO_RE = re.compile(r"(\d{4})-(\d{2})-(\d{2})")
-_DATE_DOTTED_RE = re.compile(r"(\d{2})\.(\d{2})\.(\d{4})")
-
-
-def date_to_int(value: str) -> int | None:
-    """Normalize a date string to a sortable ``YYYYMMDD`` integer.
-
-    Handles the two formats the scraper produces — ISO ``YYYY-MM-DD`` and
-    Ukrainian ``DD.MM.YYYY``. Returns ``None`` for empty/unparseable values so
-    the caller can simply omit the field (Qdrant range filters then exclude
-    undated laws, which is the desired behavior for a date-bounded query).
-    """
-    if not value:
-        return None
-    match = _DATE_ISO_RE.search(value)
-    if match:
-        year, month, day = match.group(1), match.group(2), match.group(3)
-        return int(f"{year}{month}{day}")
-    match = _DATE_DOTTED_RE.search(value)
-    if match:
-        day, month, year = match.group(1), match.group(2), match.group(3)
-        return int(f"{year}{month}{day}")
-    return None
 
 
 def _l2_normalize(vector: list[float]) -> list[float]:
@@ -184,10 +160,11 @@ def setup_qdrant(
         field_name="enacted_date",
         field_schema=PayloadSchemaType.KEYWORD,
     )
-    # Sortable integer (YYYYMMDD) for date range filters — keyword range is unsupported.
+    # Sortable YYYYMMDD integer for date range filtering (Qdrant Range needs a
+    # numeric field — the KEYWORD enacted_date above only supports exact match).
     client.create_payload_index(
         collection_name=collection_name,
-        field_name="enacted_date_ts",
+        field_name="enacted_date_int",
         field_schema=PayloadSchemaType.INTEGER,
     )
     client.create_payload_index(
@@ -277,14 +254,17 @@ def law_to_chunks(law: dict) -> list[dict]:
     chunks = []
     chunk_index = 0
 
+    # Normalize the law's date once (prefer extracted enacted_date, fall back to
+    # the catalogue date) into an ISO string + sortable YYYYMMDD int.
+    enacted_date, enacted_date_int = enacted_date_fields(
+        law.get("enacted_date") or law.get("catalogue_date", "")
+    )
+
     for section in law.get("sections", []):
         heading = section.get("heading", "")
         text = section.get("text", "")
         if not text.strip():
             continue
-
-        enacted_date = law.get("enacted_date") or law.get("catalogue_date", "")
-        enacted_date_ts = date_to_int(enacted_date)
 
         section_chunks = chunk_section(heading, text, CHUNK_SIZE, CHUNK_OVERLAP)
         for chunk_text in section_chunks:
@@ -300,11 +280,8 @@ def law_to_chunks(law: dict) -> list[dict]:
                 "section_heading": heading,
                 "chunk_index": chunk_index,
             }
-            # Sortable integer date for reliable Qdrant range filtering
-            # (the string enacted_date is kept as-is for display). Omitted when
-            # the date is missing/unparseable.
-            if enacted_date_ts is not None:
-                chunk["enacted_date_ts"] = enacted_date_ts
+            if enacted_date_int is not None:
+                chunk["enacted_date_int"] = enacted_date_int
             chunks.append(chunk)
             chunk_index += 1
 
@@ -334,10 +311,6 @@ def upsert_to_qdrant(
         point_id = str(uuid.uuid5(uuid.NAMESPACE_URL, f"{chunk['law_id']}:{chunk['chunk_index']}"))
         payload = {key: value for key, value in chunk.items() if key != "text"}
         payload["text"] = chunk["text"]
-        # Nested LangChain-style metadata mirror so the Flowise Qdrant retriever
-        # (metadata payload key = "metadata") surfaces title/url/law_id as
-        # sourceDocuments citations. The flat keys are kept for 5_query.py.
-        payload["metadata"] = {key: value for key, value in chunk.items() if key != "text"}
         points.append(PointStruct(id=point_id, vector=vector, payload=payload))
 
     # Upload in batches to avoid Qdrant write-timeout on large payloads

@@ -1,46 +1,83 @@
 # Flowise chatflow — Ukraine Law Paralegal RAG
 
-The production answer path is a **Flowise chatflow** (the same pattern as
-`chat.baena.ai`). The frontend (`../index.html`) POSTs to its prediction
-endpoint and renders `text` + `sourceDocuments`.
+> **Status / source of truth.** A **live** chatflow already serves this demo:
+> id `6b3a8804-5200-428f-afd0-abedc9c1f49c` on **`flowise.baena.site`**, wired
+> into the portfolio site's `demos/paralegal-advisor` page. It uses the
+> `rada_legislation` + `curated_legislation` retrievers + Gemini. The live graph
+> is the source of truth — **export it from the Flowise UI and commit it here.**
+> The `flowise.baena.site` DB is *not* the same as `flowise.baena.info` (whose
+> DB backs the other flows), so the export is the only reliable reference.
 
-Flowise chatflows live only in the Supabase `flowise_db` schema and are **lost on
-schema drop** (see `2025-swarm-infrastructure-deployment/FLOWISE_RUNBOOK.md`).
-Keep an exported copy here in git: after building/editing the flow in the UI,
-use **Export Chatflow** and overwrite `ukr-law-chatflow.json`.
-`ukr-law-chatflow.json` in this repo is a **build spec** (node/parameter
-reference) until it is replaced by a real export.
+This directory holds **two** graphs:
+
+- **`ukr-law-chatflow.json`** — the **live export** of the deployed flow
+  (id `6b3a8804…`): a faithful snapshot of what actually serves the demo today
+  (2 retrievers, `rada_legislation` + `curated_legislation`, + Gemini). Treat it
+  as the record of the running system; re-export and re-commit it whenever the
+  live graph changes.
+- **`ukr-law-agentflow-v2.json`** — a **proposed importable Agentflow v2**
+  reference build for the three-collection upgrade (adds the `secondary_reports`
+  retriever): Start → 3 retrievers → Agent, matching node versions
+  `startAgentflow` 1.1, `retrieverAgentflow` 1.1, `agentAgentflow` 3.2. It is
+  **not turnkey** and **not the live flow** — after import you bind 3 Document
+  Stores and 1 credential in the UI (see below), UI/credential-encrypted entities
+  that can't live in an exported graph. Reconcile it against the live export
+  before importing.
+
+The frontend POSTs `question` to `/api/v1/prediction/{id}` and renders `text` +
+`sourceDocuments`. The real UI is the portfolio's `paralegal-advisor.vue` (this
+repo's `../index.html` is a standalone demo of the same contract). Flows are
+**lost on schema drop**
+(`2025-swarm-infrastructure-deployment/FLOWISE_RUNBOOK.md`), so keep both graphs
+in git.
+
+## Architecture (the Agentflow v2 upgrade)
+
+This build's retrievers (`retrieverAgentflow`) read from **Flowise Document
+Stores**, not raw Qdrant collections. So each pipeline collection is wrapped in
+a thin Qdrant-backed Document Store. The graph is:
+
+```
+Start ──▶ Retriever: Primary_Law        (Document Store → rada_legislation)   ─┐
+      ──▶ Retriever: Curated_Law        (Document Store → curated_legislation) ─┼─▶ Agent (Gemini, law-first)
+      ──▶ Retriever: Secondary_Analysis (Document Store → secondary_reports)   ─┘
+```
 
 ## ⚠️ Embedding-dimension parity (read first)
 
 Retrieval breaks silently if the query embedding doesn't match the indexed
-vectors. Both must use **Gemini `gemini-embedding-001`** at the **same output
-dimension** as the collections were built with (`EMBED_DIM` = **3072**).
+vectors. Every Document Store below must embed with **Gemini
+`gemini-embedding-001`** at the **same dimension** the collections were built
+with (`EMBED_DIM` = **3072**), task type **RETRIEVAL_QUERY** on the query side.
 
-- The embeddings node below must produce 3072-d query vectors. 3072 is the
-  model's native dimension, so most Flowise builds need no extra config.
-- Use task type **RETRIEVAL_QUERY** on the query side (passages were embedded
-  with RETRIEVAL_DOCUMENT).
+## Setup: 3 Qdrant-backed Document Stores (one per collection)
 
-## Nodes
+For each of `rada_legislation`, `curated_legislation`, `secondary_reports`:
 
-1. **Google Generative AI Embeddings**
-   - Model `gemini-embedding-001`, task type `RETRIEVAL_QUERY`, dimension = `EMBED_DIM`.
-   - Credential: a Flowise "Google GenerativeAI" credential holding the API key
-     (see secrets below).
-2. **Qdrant retriever → `rada_legislation`** (auto-scraped corpus), top-K ≈ 4.
+1. **Document Stores → Add New** → name it after the collection.
+2. Add a **Qdrant** record store (node `qdrant` v5):
    - URL `http://storage_qdrant:6333`, API key from the `QDRANT_API_KEY_ASCII` secret.
-3. **Qdrant retriever → `curated_legislation`** (curated humanitarian KB), top-K ≈ 3.
-   - Optionally a metadata filter favoring `humanitarian_specific = true` /
-     higher `utility_score`.
-   - Combine the two retrievers (newer Flowise: a fusion / "compose retrievers"
-     node; otherwise a Tool Agent with two retriever tools). If your Flowise
-     build has neither, ship MVP with `rada_legislation` as the single retriever
-     and add the curated retriever as a fast follow.
-4. **ChatGoogleGenerativeAI (Gemini)** — model `gemini-2.5-flash` (configurable).
-   System prompt below.
-5. **Conversational Retrieval QA Chain** wiring embeddings + retriever(s) + LLM;
-   enable **Return Source Documents** so the frontend can render citations.
+   - **Collection**: the existing collection name (data is already populated by
+     the Python pipeline — do **not** re-upsert).
+3. **Embeddings**: Google Generative AI Embeddings, `gemini-embedding-001`,
+   `RETRIEVAL_QUERY`, dimension `3072`.
+4. Save, then copy the Document Store's **id** from its URL
+   (`/document-stores/<id>`).
+
+## Import & bind the Agentflow v2
+
+1. **Agentflows → Add New → Import**, choose `ukr-law-agentflow-v2.json`.
+2. Open each **Retriever** node and select the matching Document Store (or paste
+   its id, replacing the `<REPLACE_WITH_*_DOCSTORE_ID>` placeholder). Top-K:
+   Primary ≈ 4, Curated ≈ 3, Secondary_Analysis ≈ 2 (commentary — keep small so
+   reports never crowd out the law).
+3. Open the **Agent** node → select **ChatGoogleGenerativeAI**
+   (`gemini-2.0-flash`) and attach your Google credential (replaces
+   `<REPLACE_WITH_GOOGLE_AI_CREDENTIAL_ID>`). Keep the law-first system prompt
+   (already embedded; mirror of `5_query.py`).
+4. Ensure source documents are returned so the frontend renders citations. The
+   report Document Store carries `source_type`/`report_title`/`pub_date` metadata
+   so `../index.html` can label analyses distinctly.
 
 ## System prompt (mirror of `5_query.py`)
 
@@ -48,9 +85,18 @@ dimension** as the collections were built with (`EMBED_DIM` = **3072**).
 You are a legal research assistant specializing in Ukrainian legislation.
 You answer questions about Ukrainian law based on retrieved legal text excerpts.
 
+The excerpts are grouped by authority:
+- "PRIMARY LAW" and "CURATED LAW" are the actual legislative text — treat these
+  as authoritative.
+- "SECONDARY ANALYSIS" are expert reports/commentary that review the law. Use
+  them only for context, interpretation, or to flag proposed reforms. Never
+  present a report's claim as the law itself, and note that it is commentary
+  (with its date, since analyses go out of date).
+
 Guidelines:
-- Base your answer strictly on the provided legal excerpts
+- Base legal conclusions on the primary/curated legal excerpts
 - Cite the specific law title and article/section when possible
+- When you rely on a secondary analysis, attribute it as commentary and give its date
 - If the excerpts don't fully answer the question, say so clearly
 - You may answer in English even if the source texts are in Ukrainian
 - Note the enactment date of relevant laws, especially for martial law context

@@ -1,6 +1,7 @@
 beautifulsoup4
 lxml
 psycopg[binary]
+pymupdf
 python-dotenv
 qdrant-client
 requests
