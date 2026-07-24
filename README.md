@@ -189,6 +189,19 @@ documented in [`flowise/README.md`](flowise/README.md).
   python 8_reembed_to_gemini.py --recreate --skip-suspect
   ```
 
+- **Fix collapsed laws (targeted re-extract).** With `DOCLING_API_URL` set,
+  re-extract only the suspect subset — far cheaper than re-scraping everything.
+  It refreshes the on-disk JSON + Postgres staging and reports how many laws
+  actually improved:
+
+  ```bash
+  python 9_reextract_suspect.py --dry-run   # list what would be re-extracted
+  python 9_reextract_suspect.py --limit 5   # smoke test on 5 laws
+  python 9_reextract_suspect.py             # re-extract the whole suspect subset
+  # then rebuild so chunking is consistent across the collection:
+  python 8_reembed_to_gemini.py --recreate --skip-suspect
+  ```
+
 - **Incremental updates** (`4_incremental_update.py`) fetch through the same
   robust catalogue source as the bootstrap (`catalogue_source.py`) — the old
   path assumed `zak.json` returned a flat law list and silently ingested
@@ -237,6 +250,7 @@ Each row also records the UTC date when that law was last embedded/backfilled, a
 | `1_fetch_catalogue.py` | Download law ID catalogue from open data portal |
 | `2_scrape_laws.py` | Scrape full text from zakon.rada.gov.ua |
 | `corpus_quality_report.py` | Audit scraped laws for collapsed extraction / missing titles |
+| `9_reextract_suspect.py` | Re-extract the suspect subset through Docling |
 | `3_chunk_embed.py` | Chunk, embed, upsert to Qdrant |
 | `4_incremental_update.py` | Delta updates (new laws since last run) |
 | `5_query.py` | RAG query interface (CLI, Gemini end-to-end) |
