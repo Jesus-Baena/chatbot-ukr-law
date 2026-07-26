@@ -34,10 +34,25 @@ HEADERS = {"User-Agent": "Mozilla/5.0", "api-key": QDRANT_API_KEY, "Content-Type
 
 
 def load_titles() -> dict[str, str]:
-    """Return {law_id: title} for staged laws that have a non-empty title."""
+    """Return {law_id: title} for staged laws that have a usable title.
+
+    Prefers the curated English translation (`english_title`); falls back to the
+    Ukrainian catalogue title, which carries trailing tab-delimited junk from the
+    Rada open-data feed, so we keep only the text before the first tab. The
+    dedicated `title` column is unpopulated by the current scraper, so it is
+    intentionally not used here.
+    """
+    sql = r"""
+        SELECT law_id,
+               COALESCE(NULLIF(english_title, ''),
+                        NULLIF(split_part(source_catalogue_json->>'title', E'\t', 1), '')) AS title
+        FROM rada_staging_laws
+        WHERE COALESCE(english_title, '') <> ''
+           OR source_catalogue_json->>'title' IS NOT NULL
+    """
     with psycopg.connect(DATABASE_URL) as conn, conn.cursor() as cur:
-        cur.execute("SELECT law_id, title FROM rada_staging_laws WHERE COALESCE(title, '') <> ''")
-        return {law_id: title for law_id, title in cur.fetchall()}
+        cur.execute(sql)
+        return {law_id: title.strip() for law_id, title in cur.fetchall() if title and title.strip()}
 
 
 def law_ids_with_empty_title(collection: str) -> set[str]:
