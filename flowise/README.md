@@ -1,28 +1,33 @@
 # Flowise chatflow — Ukraine Law Paralegal RAG
 
-> **Status / source of truth.** A **live** chatflow already serves this demo:
-> id `6b3a8804-5200-428f-afd0-abedc9c1f49c` on **`flowise.baena.site`**, wired
-> into the portfolio site's `demos/paralegal-advisor` page. It uses the
-> `rada_legislation` + `curated_legislation` retrievers + Gemini. The live graph
-> is the source of truth — **export it from the Flowise UI and commit it here.**
-> The `flowise.baena.site` DB is *not* the same as `flowise.baena.info` (whose
-> DB backs the other flows), so the export is the only reliable reference.
+> **Status / source of truth.** A **live** chatflow serves this demo:
+> id `6b3a8804-5200-428f-afd0-abedc9c1f49c` on **`flowise.baena.info`**
+> (service `automation_flowise`), reached by the portfolio's
+> `demos/paralegal-advisor` page through the same-origin **`baena.ai`** proxy
+> (which injects the Bearer key server-side — see the gateway `Caddyfile`). As of
+> 2026-07, the live graph is a **3-retriever Tool Agent** over
+> `rada_legislation` + `curated_legislation` + `secondary_reports`, on Gemini.
+> The live graph is the source of truth — **export it and commit it here**
+> whenever it changes.
 
 This directory holds **two** graphs:
 
 - **`ukr-law-chatflow.json`** — the **live export** of the deployed flow
-  (id `6b3a8804…`): a faithful snapshot of what actually serves the demo today
-  (2 retrievers, `rada_legislation` + `curated_legislation`, + Gemini). Treat it
-  as the record of the running system; re-export and re-commit it whenever the
-  live graph changes.
-- **`ukr-law-agentflow-v2.json`** — a **proposed importable Agentflow v2**
-  reference build for the three-collection upgrade (adds the `secondary_reports`
-  retriever): Start → 3 retrievers → Agent, matching node versions
-  `startAgentflow` 1.1, `retrieverAgentflow` 1.1, `agentAgentflow` 3.2. It is
-  **not turnkey** and **not the live flow** — after import you bind 3 Document
-  Stores and 1 credential in the UI (see below), UI/credential-encrypted entities
-  that can't live in an exported graph. Reconcile it against the live export
-  before importing.
+  (id `6b3a8804…`): a faithful snapshot of what actually serves the demo today.
+  A **Tool Agent** (`toolAgent` + `chatGoogleGenerativeAI` gemini-2.5-flash +
+  `bufferMemory`) with **three raw-Qdrant `retrieverTool`s** — `primary`
+  (`rada_legislation`), `curated` (`curated_legislation`), and
+  `secondary_analysis` (`secondary_reports`, surfaced as labelled commentary).
+  A law-first system prompt (mirror of `5_query.py`) drives tool use. No Flowise
+  Document Stores — retrievers point straight at Qdrant, so the export is
+  turnkey apart from the two credentials (Google + Qdrant). Re-export and
+  re-commit whenever the live graph changes.
+- **`ukr-law-agentflow-v2.json`** — an **alternative Agentflow v2** reference
+  build (Start → 3 retrievers → Agent, node versions `startAgentflow` 1.1,
+  `retrieverAgentflow` 1.1, `agentAgentflow` 3.2). Unlike the live Chatflow, its
+  retrievers read from **Flowise Document Stores** (bind 3 Document Stores + 1
+  credential after import). Kept as a reference for the Document-Store topology;
+  **not the live flow**.
 
 The frontend POSTs `question` to `/api/v1/prediction/{id}` and renders `text` +
 `sourceDocuments`. The real UI is the portfolio's `paralegal-advisor.vue` (this
@@ -30,6 +35,27 @@ repo's `../index.html` is a standalone demo of the same contract). Flows are
 **lost on schema drop**
 (`2025-swarm-infrastructure-deployment/FLOWISE_RUNBOOK.md`), so keep both graphs
 in git.
+
+## Access control (live flow)
+
+Set in the Flowise UI (Chatflow Configuration) — these live in `chatbotConfig`,
+**not** in the exported `flowData`, so they are not captured by the JSON export:
+
+- **Allowed Domains = `https://baena.ai`** — Flowise enforces this **server-side**
+  (returns `403 "This site is not allowed to access this chatbot"` *before*
+  running the model), so other websites can't embed/call the bot from a browser.
+  Caveat: the `Origin` header is browser-set and trivially omitted/forged by a
+  script, so this blocks cross-site *browser* abuse but is **not** auth against a
+  direct script. Pair it with **Rate Limit** (same dialog) to bound token-burn.
+- `isPublic = false`, `apikeyid = ''` (empty). Note: in this Flowise version the
+  prediction endpoint answers **regardless of `isPublic`**, and binding `apikeyid`
+  is currently blocked because the gateway's injected `$FLOWISE_PROXY_API_KEY`
+  (Caddyfile ~L213, docker secret `flowise_api_key`) matches **no** active Flowise
+  API key. Airtight key-auth would require aligning that secret with a real
+  Flowise key first, then setting `apikeyid`.
+
+The `baena.ai` proxy calls are same-origin (`Origin: https://baena.ai`) and inject
+the Bearer key server-side, so they pass Allowed Domains and keep working.
 
 ## Architecture (the Agentflow v2 upgrade)
 
