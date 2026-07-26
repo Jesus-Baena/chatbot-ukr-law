@@ -36,6 +36,27 @@ repo's `../index.html` is a standalone demo of the same contract). Flows are
 (`2025-swarm-infrastructure-deployment/FLOWISE_RUNBOOK.md`), so keep both graphs
 in git.
 
+## Access control (live flow)
+
+Set in the Flowise UI (Chatflow Configuration) — these live in `chatbotConfig`,
+**not** in the exported `flowData`, so they are not captured by the JSON export:
+
+- **Allowed Domains = `https://baena.ai`** — Flowise enforces this **server-side**
+  (returns `403 "This site is not allowed to access this chatbot"` *before*
+  running the model), so other websites can't embed/call the bot from a browser.
+  Caveat: the `Origin` header is browser-set and trivially omitted/forged by a
+  script, so this blocks cross-site *browser* abuse but is **not** auth against a
+  direct script. Pair it with **Rate Limit** (same dialog) to bound token-burn.
+- `isPublic = false`, `apikeyid = ''` (empty). Note: in this Flowise version the
+  prediction endpoint answers **regardless of `isPublic`**, and binding `apikeyid`
+  is currently blocked because the gateway's injected `$FLOWISE_PROXY_API_KEY`
+  (Caddyfile ~L213, docker secret `flowise_api_key`) matches **no** active Flowise
+  API key. Airtight key-auth would require aligning that secret with a real
+  Flowise key first, then setting `apikeyid`.
+
+The `baena.ai` proxy calls are same-origin (`Origin: https://baena.ai`) and inject
+the Bearer key server-side, so they pass Allowed Domains and keep working.
+
 ## Architecture (the Agentflow v2 upgrade)
 
 This build's retrievers (`retrieverAgentflow`) read from **Flowise Document
